@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Code Forge",
+  "description": "An automated code review tool that uses the Gemini API to analyze code or code snippets and provide detailed corrections, recommendations, and a summary of the code's quality.",
+  "requestFramePermissions": []
+}
