@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import type { CodeReview, Settings } from '../types';
 
 const reviewSchema = {
@@ -96,7 +96,7 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: settings.model || "gemini-2.5-flash",
       contents: prompt,
       config: {
@@ -105,12 +105,32 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
       },
     });
 
+    // The Gemini API can return a response with no text if the content is blocked
+    // or if the model fails to generate a response that fits the schema.
+    // We need to handle this case gracefully.
+    if (!response || !response.text) {
+        let reason = "The API returned an empty or invalid response.";
+        // Dig into the response to find a more specific reason, if available.
+        // This structure is based on how Gemini API typically reports issues.
+        const candidates = (response as any)?.candidates;
+        const promptFeedback = (response as any)?.promptFeedback;
+
+        if (promptFeedback?.blockReason) {
+            reason = `The prompt was blocked due to safety settings. Reason: ${promptFeedback.blockReason}.`;
+        } else if (candidates?.[0]?.finishReason && candidates?.[0]?.finishReason !== 'STOP') {
+            reason = `The response was incomplete, possibly due to safety filters or other issues. Finish reason: ${candidates[0].finishReason}.`;
+        }
+        
+        throw new Error(reason);
+    }
+
     const jsonText = response.text.trim();
     const reviewData = JSON.parse(jsonText);
     return reviewData as CodeReview;
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    throw new Error("Failed to get code review from Gemini API. Check API key and model name.");
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to get code review from Gemini API. ${errorMessage}`);
   }
 };
