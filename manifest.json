@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Code Forge",
+  "version": "1.0",
+  "description": "An AI-powered code reviewer that supports Gemini and local OpenAI-compatible models.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "host_permissions": [
+    "https://*.googleapis.com/",
+    "<all_urls>"
+  ]
+}

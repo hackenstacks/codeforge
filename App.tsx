@@ -6,10 +6,12 @@ import { Loader } from './components/Loader';
 import { SparklesIcon } from './components/icons/SparklesIcon';
 import { UploadIcon } from './components/icons/UploadIcon';
 import { CorrectedCodeView } from './components/CorrectedCodeView';
-import { reviewCode } from './services/geminiService';
+import { SettingsProvider, useSettings } from './contexts/SettingsContext';
+import { SettingsModal } from './components/SettingsModal';
+import { reviewCode } from './services/llmService';
 import type { CodeReview } from './types';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [originalCode, setOriginalCode] = useState<string>('');
   const [customPrompt, setCustomPrompt] = useState<string>('');
@@ -17,10 +19,17 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  const { settings } = useSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleReview = useCallback(async () => {
+    if (!settings.apiKey && settings.provider === 'gemini') {
+        setError('Please set your Google API Key in the settings.');
+        setIsSettingsOpen(true);
+        return;
+    }
     if (!code.trim()) {
       setError('Please enter some code or upload a file to review.');
       return;
@@ -28,17 +37,18 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setReview(null);
-    setOriginalCode(code); // Create "backup" in state
+    setOriginalCode(code); 
     try {
-      const result = await reviewCode(code, customPrompt);
+      const result = await reviewCode(settings, code, customPrompt);
       setReview(result);
     } catch (err) {
       console.error(err);
-      setError('An error occurred while reviewing the code. Please check the console for details.');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setError(`An error occurred while reviewing the code. Please check your settings and console for details. Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
-  }, [code, customPrompt]);
+  }, [code, customPrompt, settings]);
   
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -52,7 +62,7 @@ const App: React.FC = () => {
         const text = e.target?.result;
         if (typeof text === 'string') {
           setCode(text);
-          setOriginalCode(text); // Also backup on upload
+          setOriginalCode(text);
           setFileName(file.name);
           setReview(null); 
           setError(null);
@@ -63,7 +73,6 @@ const App: React.FC = () => {
       }
       reader.readAsText(file);
     }
-    // Reset the input value to allow uploading the same file again
     if(event.target) {
       event.target.value = '';
     }
@@ -81,7 +90,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans">
-      <Header />
+      <Header onSettingsClick={() => setIsSettingsOpen(true)} />
       <main className="container mx-auto p-4 md:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="flex flex-col">
@@ -171,10 +180,17 @@ const App: React.FC = () => {
             />
           </div>
         )}
-
       </main>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 };
+
+const App: React.FC = () => (
+  <SettingsProvider>
+    <AppContent />
+  </SettingsProvider>
+);
+
 
 export default App;

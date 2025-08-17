@@ -1,12 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import type { CodeReview } from '../types';
-
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import type { CodeReview, Settings } from '../types';
 
 const reviewSchema = {
   type: Type.OBJECT,
@@ -71,7 +64,13 @@ const reviewSchema = {
   required: ["summary", "corrections", "recommendations", "correctedCode"],
 };
 
-export const reviewCode = async (code: string, customPrompt?: string): Promise<CodeReview> => {
+export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string): Promise<CodeReview> => {
+  if (!settings.apiKey) {
+    throw new Error("Google API Key not provided in settings.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: settings.apiKey });
+
   let prompt = `
     Please act as an expert code reviewer. Analyze the following code snippet for bugs, style issues, and potential improvements.
     Provide a detailed review in the specified JSON format.
@@ -98,7 +97,7 @@ export const reviewCode = async (code: string, customPrompt?: string): Promise<C
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: settings.model || "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -112,6 +111,6 @@ export const reviewCode = async (code: string, customPrompt?: string): Promise<C
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    throw new Error("Failed to get code review from Gemini API.");
+    throw new Error("Failed to get code review from Gemini API. Check API key and model name.");
   }
 };

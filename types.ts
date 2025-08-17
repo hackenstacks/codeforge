@@ -18,3 +18,12 @@ export interface CodeReview {
   recommendations: Recommendation[];
   correctedCode: string;
 }
+
+export type ProviderType = 'gemini' | 'openai';
+
+export interface Settings {
+    provider: ProviderType;
+    apiKey: string;
+    model: string;
+    endpoint: string;
+}

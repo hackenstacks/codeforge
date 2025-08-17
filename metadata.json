@@ -1,5 +1,5 @@
 {
   "name": "Gemini Code Forge",
-  "description": "An automated code review tool that uses the Gemini API to analyze code or code snippets and provide detailed corrections, recommendations, and a summary of the code's quality.",
+  "description": "An automated code review tool that uses the Gemini API or any OpenAI-compatible backend (like Ollama) to analyze code. Provides detailed corrections, recommendations, and a diff view of the changes. Configurable for custom models and endpoints.",
   "requestFramePermissions": []
 }
