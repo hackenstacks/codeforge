@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { CodeReview, Settings, CodeGeneration } from '../types';
+import type { CodeReview, Settings, CodeGeneration, ImageGenerationResult } from '../types';
 
 const reviewSchema = {
   type: Type.OBJECT,
@@ -109,6 +109,34 @@ const processStream = async (stream: any, onChunk: (chunk: string) => void): Pro
     return accumulatedText;
 }
 
+export const callGeminiApiForImageGeneration = async (settings: Settings, prompt: string): Promise<ImageGenerationResult> => {
+    if (!settings.apiKey) {
+        throw new Error("Google API Key not provided in settings.");
+    }
+    const ai = new GoogleGenAI({ apiKey: settings.apiKey });
+
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt: prompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/png',
+            },
+        });
+
+        if (!response.generatedImages || response.generatedImages.length === 0) {
+            throw new Error("API did not return any images.");
+        }
+
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return { base64Image: base64ImageBytes };
+    } catch (error) {
+        console.error("Error calling Gemini API for image generation:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to generate image from Gemini API. ${errorMessage}`);
+    }
+};
 
 export const callGeminiApiForGeneration = async (settings: Settings, prompt: string, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeGeneration> => {
   if (!settings.apiKey) {

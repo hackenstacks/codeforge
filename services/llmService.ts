@@ -1,6 +1,6 @@
-import type { Settings, CodeReview, CodeGeneration } from '../types';
-import { callGeminiApi, callGeminiApiForGeneration } from './geminiService';
-import { callOpenAICompatibleApi, callOpenAICompatibleApiForGeneration } from './openaiCompatibleService';
+import type { Settings, CodeReview, CodeGeneration, ImageGenerationResult } from '../types';
+import { callGeminiApi, callGeminiApiForGeneration, callGeminiApiForImageGeneration } from './geminiService';
+import { callOpenAICompatibleApi, callOpenAICompatibleApiForGeneration, callOpenAICompatibleApiForImageGeneration } from './openaiCompatibleService';
 
 export const reviewCode = async (
     settings: Settings,
@@ -33,3 +33,17 @@ export const generateCode = async (
             throw new Error(`Unsupported provider: ${settings.provider}`);
     }
 };
+
+export const generateImage = async (
+    settings: Settings,
+    prompt: string,
+): Promise<ImageGenerationResult> => {
+    switch (settings.provider) {
+        case 'gemini':
+            return callGeminiApiForImageGeneration(settings, prompt);
+        case 'openai':
+            return callOpenAICompatibleApiForImageGeneration(settings, prompt);
+        default:
+            throw new Error(`Unsupported provider: ${settings.provider}`);
+    }
+}

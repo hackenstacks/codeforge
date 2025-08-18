@@ -1,4 +1,4 @@
-import type { CodeReview, Settings, CodeGeneration } from '../types';
+import type { CodeReview, Settings, CodeGeneration, ImageGenerationResult } from '../types';
 
 const extractJsonFromText = (text: string): any => {
     if (!text) {
@@ -69,6 +69,52 @@ const processStream = async (response: Response, onChunk: (chunk: string) => voi
     return accumulatedText;
 }
 
+export const callOpenAICompatibleApiForImageGeneration = async (settings: Settings, prompt: string): Promise<ImageGenerationResult> => {
+    // This is a speculative implementation assuming a DALL-E-like API.
+    // The endpoint for images may be different from the chat completions one.
+    // We'll replace 'chat/completions' with 'images/generations' if present.
+    if (!settings.endpoint) {
+        throw new Error("OpenAI-compatible API endpoint not provided in settings.");
+    }
+    
+    const imageEndpoint = settings.endpoint.replace('chat/completions', 'images/generations');
+
+    try {
+        const response = await fetch(imageEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${settings.apiKey}`
+            },
+            body: JSON.stringify({
+                model: settings.model, // Or a specific image model like 'dall-e-3'
+                prompt: prompt,
+                n: 1,
+                size: "1024x1024",
+                response_format: "b64_json"
+            }),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+        }
+        
+        const responseData = await response.json();
+        const base64Image = responseData.data?.[0]?.b64_json;
+        
+        if (!base64Image) {
+            throw new Error("API response did not contain valid base64 image data.");
+        }
+
+        return { base64Image };
+
+    } catch (error) {
+        console.error("Error calling OpenAI-compatible API for image generation:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to generate image from OpenAI-compatible API. This feature assumes a DALL-E-like API structure. Error: ${errorMessage}`);
+    }
+};
 
 export const callOpenAICompatibleApiForGeneration = async (settings: Settings, prompt: string, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeGeneration> => {
   if (!settings.endpoint) {

@@ -1,22 +1,24 @@
-# Code Forge - AI-Powered Code Reviewer
+# Code Forge - AI-Powered Development Assistant
 
-Code Forge is a powerful, interactive tool that leverages AI to provide detailed code reviews. Paste your code, upload a file, and get instant feedback on bugs, style, and best practices. View the suggested changes in a clear diff format, understand the reasoning with inline explanations, and apply the fixes with a single click.
-
-![Code Forge Screenshot](https://i.imgur.com/example.png) <!-- Replace with an actual screenshot -->
+Code Forge is a powerful, interactive tool that leverages AI to supercharge your development workflow. It's a code reviewer, a code generator, and an image generator all in one, with a persistent, searchable local database to save all your work.
 
 ## ✨ Features
 
-*   **AI-Powered Analysis**: Get expert-level code reviews from powerful language models.
-*   **Interactive Diff Viewer**: Clearly see additions and deletions proposed by the AI.
-*   **Inline Explanations**: Understand the "why" behind each suggestion with clickable info icons.
-*   **File Operations**: Upload files, save corrected code, and download backups of your original work.
-*   **Custom Instructions**: Guide the AI with specific prompts (e.g., "focus on performance").
+*   **Multi-Mode AI**:
+    *   **Review Code**: Get expert-level analysis of your code for bugs, style, and best practices.
+    *   **Generate Code**: Describe what you need, and let the AI write the code for you.
+    *   **Generate Image**: Create images from text prompts (with compatible models like Gemini).
+*   **The Forge Vault (Local Database)**:
+    *   **Persistent Storage**: Save your code reviews, generated code, and images directly in your browser using IndexedDB. Everything stays on your machine.
+    *   **Tagging & Organization**: Add custom tags to any saved project to keep your work organized.
+    *   **Full-Text Search**: Instantly find any saved item by its content, prompt, or tags.
+*   **Interactive Diff Viewer**: Clearly see additions and deletions proposed by the AI during a code review.
+*   **Advanced Analysis**: Use "Deep Scan" for a more rigorous two-step validation review and "Live Thinking" to see the AI's response stream in real-time.
 *   **Multi-Provider Support**:
     *   Connect to **Google Gemini**.
-    *   Connect to any **OpenAI-Compatible** backend (Ollama, LM Studio, local servers).
-*   **Custom Configuration**: Bring your own API key, endpoint, and model name.
-*   **Browser Extension Ready**: Includes a manifest to be easily packaged as a browser extension.
-*   **Client-Side Privacy**: All code and API keys are processed and stored locally in your browser. Nothing is stored on a server.
+    *   Connect to any **OpenAI-Compatible** backend (Ollama, LM Studio, etc.).
+*   **Browser Extension Ready**: Includes a `manifest.json` to be easily packaged as a browser extension.
+*   **Client-Side Privacy**: All code, prompts, and API keys are processed and stored locally in your browser. Nothing is stored on a server.
 
 ## 🚀 Getting Started
 
@@ -61,7 +63,7 @@ Click the **gear icon** in the header to open the settings panel.
 1.  Go to [Google AI Studio](https://aistudio.google.com/app/apikey) to generate an API key.
 2.  In Code Forge settings, select the **Google Gemini** provider.
 3.  Paste your API key into the "API Key" field.
-4.  You can change the model name if you wish (e.g., `gemini-2.5-flash`).
+4.  You can change the model name if you wish (e.g., `gemini-2.5-flash` for text, `imagen-3.0-generate-002` for images).
 5.  Click **Save**.
 
 ### Ollama & Other Local Models (OpenAI-Compatible)
@@ -69,7 +71,7 @@ Click the **gear icon** in the header to open the settings panel.
 You can connect Code Forge to a local model running with Ollama.
 
 1.  **Install and run Ollama** on your machine.
-2.  Pull a model you want to use for code review (e.g., `llama3`, `codellama`):
+2.  Pull a model you want to use (e.g., `llama3`, `codellama`):
     ```bash
     ollama pull llama3
     ```
