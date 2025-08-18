@@ -96,7 +96,12 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
   }
   
    systemPrompt += `
-    CRITICAL: The value for the 'correctedCode' field must be a single, valid JSON string. All special characters within the code, especially double quotes (") and backslashes (\\), must be properly escaped (e.g., \\" and \\\\) to ensure the final output is a valid JSON object.
+    CRITICAL: The 'correctedCode' field must contain the entire code as a SINGLE JSON STRING.
+    This requires escaping special characters correctly.
+    - All double quotes (") inside the code must become (\\").
+    - All backslashes (\\) inside the code must become (\\\\).
+    - All newline characters must become (\\n).
+    This is MANDATORY for the JSON to be valid.
 
     TypeScript interface for your response:
     ${codeReviewInterface}

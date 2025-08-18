@@ -109,9 +109,14 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
   }
 
   prompt += `
-    Most importantly, provide the full, corrected version of the code in the 'correctedCode' field. This corrected code should be ready to be copied and used directly, incorporating all your suggested fixes.
+    Most importantly, provide the full, corrected version of the code in the 'correctedCode' field.
     
-    CRITICAL: The value for 'correctedCode' must be a single, valid JSON string. All special characters, especially double quotes (") and backslashes (\\), within the code must be properly escaped (e.g., \\" and \\\\). Failure to do so will result in an invalid JSON object.
+    CRITICAL: The 'correctedCode' field must contain the entire code as a SINGLE JSON STRING.
+    This requires escaping special characters.
+    - All double quotes (") inside the code must become (\\").
+    - All backslashes (\\) inside the code must become (\\\\).
+    - All newline characters must become (\\n).
+    This is MANDATORY for the JSON to be valid.
   `;
 
   if (customPrompt && customPrompt.trim() !== '') {
