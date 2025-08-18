@@ -19,6 +19,10 @@ export interface CodeReview {
   validationSummary?: string;
 }
 
+export interface CodeGeneration {
+  generatedCode: string;
+}
+
 export type ProviderType = 'gemini' | 'openai';
 
 export interface Settings {
