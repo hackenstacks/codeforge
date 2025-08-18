@@ -17,9 +17,11 @@ const AppContent: React.FC = () => {
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [review, setReview] = useState<CodeReview | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingStage, setLoadingStage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [deepScan, setDeepScan] = useState<boolean>(false);
 
   const { settings } = useSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +41,9 @@ const AppContent: React.FC = () => {
     setReview(null);
     setOriginalCode(code); 
     try {
-      const result = await reviewCode(settings, code, customPrompt);
+      setLoadingStage(deepScan ? 'Stage 1/2: Analyzing...' : 'Analyzing your code...');
+      const result = await reviewCode(settings, code, customPrompt, deepScan);
+      if(deepScan) setLoadingStage('Stage 2/2: Validating...');
       setReview(result);
     } catch (err) {
       console.error(err);
@@ -47,8 +51,9 @@ const AppContent: React.FC = () => {
       setError(`An error occurred while reviewing the code. Please check your settings and console for details. Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
+      setLoadingStage('');
     }
-  }, [code, customPrompt, settings]);
+  }, [code, customPrompt, settings, deepScan]);
   
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -125,7 +130,7 @@ const AppContent: React.FC = () => {
                 {isLoading ? (
                   <>
                     <Loader />
-                    <span className="ml-2">Reviewing...</span>
+                    <span className="ml-2">{loadingStage || 'Reviewing...'}</span>
                   </>
                 ) : (
                   <>
@@ -139,11 +144,29 @@ const AppContent: React.FC = () => {
                 disabled={isLoading}
                 title="Upload File"
                 aria-label="Upload file for code review"
-                className="inline-flex items-center justify-center px-6 py-3 border border-gray-600 text-base font-medium rounded-md shadow-sm text-gray-300 bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center justify-center px-4 py-3 border border-gray-600 text-base font-medium rounded-md shadow-sm text-gray-300 bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 disabled:opacity-50 transition-colors"
               >
-                <UploadIcon className="h-5 w-5 mr-2" />
-                Upload
+                <UploadIcon className="h-5 w-5" />
               </button>
+            </div>
+             <div className="flex items-center justify-center mt-4">
+                <label htmlFor="deep-scan-toggle" className="flex items-center cursor-pointer">
+                    <div className="relative">
+                        <input 
+                            type="checkbox" 
+                            id="deep-scan-toggle" 
+                            className="sr-only" 
+                            checked={deepScan} 
+                            onChange={() => setDeepScan(!deepScan)}
+                            disabled={isLoading}
+                        />
+                        <div className={`block w-14 h-8 rounded-full transition ${deepScan ? 'bg-blue-600' : 'bg-gray-600'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${deepScan ? 'transform translate-x-6' : ''}`}></div>
+                    </div>
+                    <div className="ml-3 text-gray-400 text-sm font-medium">
+                       Deep Scan <span className="text-gray-500">(Validate & Refine)</span>
+                    </div>
+                </label>
             </div>
           </div>
 
@@ -154,7 +177,7 @@ const AppContent: React.FC = () => {
                 {isLoading && (
                    <div className="flex flex-col items-center justify-center h-full">
                        <Loader />
-                       <p className="mt-4 text-gray-400">Analyzing your code...</p>
+                       <p className="mt-4 text-gray-400">{loadingStage || 'Analyzing your code...'}</p>
                    </div>
                 )}
                 {review ? (

@@ -60,6 +60,10 @@ const reviewSchema = {
       type: Type.STRING,
       description: "The full, complete code snippet with all corrections applied. This should be a single block of text representing the entire corrected file or snippet.",
     },
+    validationSummary: {
+        type: Type.STRING,
+        description: "A summary of the AI's validation process. Explain if any potential runtime errors, logic flaws, or edge cases were found in the initially corrected code and how they were fixed in the final version. If no issues were found, state that the code was validated."
+    }
   },
   required: ["summary", "corrections", "recommendations", "correctedCode"],
 };
@@ -68,12 +72,10 @@ const extractJsonFromText = (text: string): string => {
     if (!text) return '';
     let jsonText = text.trim();
 
-    // 1. Try to find JSON within ```json ... ```
     const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
     if (match && match[1]) {
         jsonText = match[1].trim();
     } else {
-        // 2. If not found, find the first '{' and last '}'
         const firstBrace = jsonText.indexOf('{');
         const lastBrace = jsonText.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -84,7 +86,7 @@ const extractJsonFromText = (text: string): string => {
 };
 
 
-export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string): Promise<CodeReview> => {
+export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean): Promise<CodeReview> => {
   if (!settings.apiKey) {
     throw new Error("Google API Key not provided in settings.");
   }
@@ -94,6 +96,19 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
   let prompt = `
     Please act as an expert code reviewer. Analyze the following code snippet for bugs, style issues, and potential improvements.
     Provide a detailed review in the specified JSON format.
+  `;
+  
+  if (deepScan) {
+      prompt += `
+      Follow this two-step process:
+      1.  **Initial Review**: First, identify all issues and generate a corrected version of the code.
+      2.  **Validation & Refinement**: After generating the corrected code, perform a critical "dry run" analysis on it. Pretend to execute the code and check for potential runtime errors, logic flaws, or unhandled edge cases. Refine the code further based on this validation. Your final 'correctedCode' output must be this refined, validated version.
+      
+      Provide a summary of your validation process in the 'validationSummary' field.
+      `;
+  }
+
+  prompt += `
     Most importantly, provide the full, corrected version of the code in the 'correctedCode' field. This corrected code should be ready to be copied and used directly, incorporating all your suggested fixes.
     
     CRITICAL: The value for 'correctedCode' must be a single, valid JSON string. All special characters, especially double quotes (") and backslashes (\\), within the code must be properly escaped (e.g., \\" and \\\\). Failure to do so will result in an invalid JSON object.

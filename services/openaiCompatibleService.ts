@@ -7,12 +7,10 @@ const extractJsonFromText = (text: string): any => {
     
     let jsonText = text.trim();
 
-    // 1. Try to find JSON within ```json ... ```
     const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
     if (match && match[1]) {
         jsonText = match[1].trim();
     } else {
-        // 2. If not found, find the first '{' and last '}'
         const firstBrace = jsonText.indexOf('{');
         const lastBrace = jsonText.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -33,12 +31,12 @@ const extractJsonFromText = (text: string): any => {
     }
 };
 
-export const callOpenAICompatibleApi = async (settings: Settings, code: string, customPrompt?: string): Promise<CodeReview> => {
+export const callOpenAICompatibleApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean): Promise<CodeReview> => {
   if (!settings.endpoint) {
     throw new Error("OpenAI-compatible API endpoint not provided in settings.");
   }
 
-  const codeReviewInterface = `
+  let codeReviewInterface = `
     interface Correction {
       line?: number;
       problematicCode: string;
@@ -55,14 +53,14 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
       corrections: Correction[];
       recommendations: Recommendation[];
       correctedCode: string;
+      ${deepScan ? 'validationSummary: string;' : ''}
     }
   `;
 
   let userPrompt = `
     Please act as an expert code reviewer. Analyze the following code snippet for bugs, style issues, and potential improvements.
-    Provide the full, corrected version of the code in the 'correctedCode' field. This corrected code should be ready to be copied and used directly, incorporating all your suggested fixes.
   `;
-  
+
   if (customPrompt && customPrompt.trim() !== '') {
     userPrompt += `
     
@@ -80,12 +78,24 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
     ${code}
     \`\`\`
   `;
-
-  const systemPrompt = `
+  
+  let systemPrompt = `
     You are an expert code review assistant. Your task is to analyze user-provided code and return a detailed review.
     You MUST return your response as a single, valid JSON object that strictly adheres to the following TypeScript interface.
     Do NOT include any other text, explanations, or markdown formatting like \`\`\`json outside of the JSON object itself.
-
+  `;
+  
+  if (deepScan) {
+      systemPrompt += `
+      Your review process must be in two steps:
+      1.  **Initial Review**: First, identify all issues and generate a corrected version of the code.
+      2.  **Validation & Refinement**: After generating the corrected code, perform a critical "dry run" analysis on it. Pretend to execute the code and check for potential runtime errors, logic flaws, or unhandled edge cases. Refine the code further based on this validation. Your final 'correctedCode' output must be this refined, validated version.
+      
+      You must provide a summary of your validation process in the 'validationSummary' field.
+      `;
+  }
+  
+   systemPrompt += `
     CRITICAL: The value for the 'correctedCode' field must be a single, valid JSON string. All special characters within the code, especially double quotes (") and backslashes (\\), must be properly escaped (e.g., \\" and \\\\) to ensure the final output is a valid JSON object.
 
     TypeScript interface for your response:

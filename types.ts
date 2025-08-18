@@ -1,4 +1,3 @@
-
 export interface Correction {
   line?: number;
   problematicCode: string;
@@ -17,6 +16,7 @@ export interface CodeReview {
   corrections: Correction[];
   recommendations: Recommendation[];
   correctedCode: string;
+  validationSummary?: string;
 }
 
 export type ProviderType = 'gemini' | 'openai';
