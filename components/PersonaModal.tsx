@@ -30,24 +30,27 @@ export const PersonaModal: React.FC<PersonaModalProps> = ({ isOpen, onClose, per
     }
   }, [isOpen]);
 
-  const handleSelectPersona = (persona: Persona) => {
+  const handleSelectAndClose = (persona: Persona) => {
     setActivePersona(persona);
     onClose();
   };
 
   const handleSave = () => {
     if (!editingPersona || !editingPersona.name || !editingPersona.systemInstruction) return;
+    
+    let savedPersona: Persona;
 
     if (editingPersona.id) { // Update existing
-        setPersonas(personas.map(p => p.id === editingPersona.id ? editingPersona as Persona : p));
+        savedPersona = editingPersona as Persona;
+        setPersonas(personas.map(p => p.id === savedPersona.id ? savedPersona : p));
     } else { // Create new
-        const newPersona: Persona = {
+        savedPersona = {
             ...editingPersona,
             id: `custom-${Date.now()}`
         } as Persona;
-        setPersonas([...personas, newPersona]);
+        setPersonas(prev => [...prev, savedPersona]);
     }
-    setEditingPersona(null);
+    setEditingPersona(savedPersona); // Keep the saved persona in view
   };
   
   const handleDelete = (id: string) => {
@@ -56,6 +59,11 @@ export const PersonaModal: React.FC<PersonaModalProps> = ({ isOpen, onClose, per
             setActivePersona(defaultPersonas[0]);
         }
         setPersonas(personas.filter(p => p.id !== id));
+
+        // If the deleted persona was being edited, clear the editor
+        if (editingPersona?.id === id) {
+            setEditingPersona(null);
+        }
     }
   };
 
@@ -137,7 +145,17 @@ export const PersonaModal: React.FC<PersonaModalProps> = ({ isOpen, onClose, per
             </div>
         </div>
          <div className="p-4 border-t border-light-border dark:border-gray-700 flex justify-end">
-            <button onClick={() => handleSelectPersona(personas.find(p => p.id === activePersona.id) || defaultPersonas[0])} className="px-6 py-2 font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Set as Active & Close</button>
+            <button 
+                onClick={() => {
+                    const personaToActivate = editingPersona?.id
+                        ? (personas.find(p => p.id === editingPersona.id) || activePersona)
+                        : activePersona;
+                    handleSelectAndClose(personaToActivate);
+                }} 
+                className="px-6 py-2 font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+            >
+                Set as Active & Close
+            </button>
         </div>
       </div>
     </div>
