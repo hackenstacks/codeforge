@@ -36,9 +36,33 @@ export interface Settings {
     endpoint: string;
 }
 
-// ---- Database Project Types ----
+// ---- Chat Types ----
+export type ChatMessageRole = 'user' | 'assistant';
 
-export type ProjectType = 'review' | 'code' | 'image';
+export interface GroundingChunk {
+    web: {
+        uri: string;
+        title: string;
+    }
+}
+
+export interface ChatMessage {
+    role: ChatMessageRole;
+    content: string;
+    groundingChunks?: GroundingChunk[];
+}
+
+export interface Persona {
+    id: string;
+    name: string;
+    description: string;
+    systemInstruction: string;
+    avatar: string; // emoji
+}
+
+
+// ---- Database Project Types ----
+export type ProjectType = 'review' | 'code' | 'image' | 'chat';
 
 export interface ProjectDataReview {
     review: CodeReview;
@@ -53,9 +77,14 @@ export interface ProjectDataImage {
     base64Image: string;
 }
 
+export interface ProjectDataChat {
+    messages: ChatMessage[];
+    persona: Persona;
+}
+
 interface BaseProject {
     id?: number;
-    prompt?: string;
+    prompt?: string; // Can be used as title for chat
     tags: string[];
     createdAt: Date;
     fileName?: string;
@@ -76,4 +105,9 @@ export interface ImageProject extends BaseProject {
     data: ProjectDataImage;
 }
 
-export type Project = ReviewProject | CodeProject | ImageProject;
+export interface ChatProject extends BaseProject {
+    type: 'chat';
+    data: ProjectDataChat;
+}
+
+export type Project = ReviewProject | CodeProject | ImageProject | ChatProject;

@@ -4,7 +4,7 @@ import type { Settings } from '../types';
 
 const defaultSettings: Settings = {
     provider: 'gemini',
-    apiKey: '',
+    apiKey: process.env.API_KEY || '',
     model: 'gemini-2.5-flash',
     endpoint: '',
 };

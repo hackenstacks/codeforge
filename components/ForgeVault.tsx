@@ -5,7 +5,7 @@ import { ProjectCard } from './ProjectCard';
 import { Loader } from './Loader';
 
 interface ForgeVaultProps {
-    setView: (view: 'main' | 'vault') => void;
+    setView: (view: 'chat' | 'vault') => void;
     onLoadProject: (project: Project) => void;
 }
 

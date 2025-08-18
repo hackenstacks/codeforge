@@ -1,38 +1,26 @@
-import type { Settings, CodeReview, CodeGeneration, ImageGenerationResult } from '../types';
-import { callGeminiApi, callGeminiApiForGeneration, callGeminiApiForImageGeneration } from './geminiService';
-import { callOpenAICompatibleApi, callOpenAICompatibleApiForGeneration, callOpenAICompatibleApiForImageGeneration } from './openaiCompatibleService';
+import type { Settings, ImageGenerationResult, ChatMessage, Persona } from '../types';
+import { callGeminiApiForChat, callGeminiApiForImageGeneration } from './geminiService';
+import { callOpenAICompatibleApiForChat } from './openaiCompatibleService';
+import { GenerateContentResponse } from '@google/genai';
 
-export const reviewCode = async (
+export const getChatResponse = async (
     settings: Settings,
-    code: string,
-    customPrompt?: string,
-    deepScan?: boolean,
-    streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }
-): Promise<CodeReview> => {
-    switch (settings.provider) {
-        case 'gemini':
-            return callGeminiApi(settings, code, customPrompt, deepScan, streamOptions);
-        case 'openai':
-            return callOpenAICompatibleApi(settings, code, customPrompt, deepScan, streamOptions);
-        default:
-            throw new Error(`Unsupported provider: ${settings.provider}`);
-    }
-};
-
-export const generateCode = async (
-    settings: Settings,
-    prompt: string,
-    streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }
-): Promise<CodeGeneration> => {
+    messages: ChatMessage[],
+    persona: Persona,
+    useWebSearch: boolean,
+    streamOptions: { signal: AbortSignal, onChunk: (chunk: any) => void }
+): Promise<any> => {
      switch (settings.provider) {
         case 'gemini':
-            return callGeminiApiForGeneration(settings, prompt, streamOptions);
+            return callGeminiApiForChat(settings, messages, persona, useWebSearch, streamOptions as { signal: AbortSignal, onChunk: (chunk: GenerateContentResponse) => void });
         case 'openai':
-            return callOpenAICompatibleApiForGeneration(settings, prompt, streamOptions);
+            // The OpenAI service will need to be adapted to return a compatible response or this needs a transformer
+            return callOpenAICompatibleApiForChat(settings, messages, persona, useWebSearch, streamOptions);
         default:
             throw new Error(`Unsupported provider: ${settings.provider}`);
     }
-};
+}
+
 
 export const generateImage = async (
     settings: Settings,
@@ -42,7 +30,8 @@ export const generateImage = async (
         case 'gemini':
             return callGeminiApiForImageGeneration(settings, prompt);
         case 'openai':
-            return callOpenAICompatibleApiForImageGeneration(settings, prompt);
+            // You would need to implement this in the openaiCompatibleService
+            throw new Error("Image generation for OpenAI-compatible providers is not implemented yet.");
         default:
             throw new Error(`Unsupported provider: ${settings.provider}`);
     }

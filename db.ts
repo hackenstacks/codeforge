@@ -2,7 +2,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import type { Project } from './types';
 
 const DB_NAME = 'CodeForgeDB';
-const DB_VERSION = 1;
+const DB_VERSION = 1; // Remains 1, as we are not changing structure, just data type logic
 const STORE_NAME = 'projects';
 
 interface CodeForgeDB extends DBSchema {
@@ -19,12 +19,14 @@ const getDb = (): Promise<IDBPDatabase<CodeForgeDB>> => {
   if (!dbPromise) {
     dbPromise = openDB<CodeForgeDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        const store = db.createObjectStore(STORE_NAME, {
-          keyPath: 'id',
-          autoIncrement: true,
-        });
-        store.createIndex('createdAt', 'createdAt');
-        store.createIndex('tags', 'tags', { multiEntry: true });
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+            const store = db.createObjectStore(STORE_NAME, {
+                keyPath: 'id',
+                autoIncrement: true,
+            });
+            store.createIndex('createdAt', 'createdAt');
+            store.createIndex('tags', 'tags', { multiEntry: true });
+        }
       },
     });
   }
@@ -41,6 +43,11 @@ export const db = {
     return db.add(STORE_NAME, newProject as Project);
   },
 
+  async updateProject(project: Project): Promise<number> {
+    const db = await getDb();
+    return db.put(STORE_NAME, project);
+  },
+
   async getProject(id: number): Promise<Project | undefined> {
     const db = await getDb();
     return db.get(STORE_NAME, id);
@@ -48,7 +55,8 @@ export const db = {
 
   async getAllProjects(): Promise<Project[]> {
     const db = await getDb();
-    return db.getAllFromIndex(STORE_NAME, 'createdAt');
+    const projects = await db.getAllFromIndex(STORE_NAME, 'createdAt');
+    return projects.reverse(); // Sort newest first
   },
 
   async searchProjects(query: string): Promise<Project[]> {
@@ -58,7 +66,6 @@ export const db = {
     const lowerCaseQuery = query.toLowerCase();
 
     if (!lowerCaseQuery) {
-        // Return sorted by date if query is empty
         return allProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }
 
@@ -67,16 +74,20 @@ export const db = {
         if (p.tags && p.tags.some(tag => tag.toLowerCase().includes(lowerCaseQuery))) {
             return true;
         }
-        // Search in prompt
+        // Search in prompt/title
         if (p.prompt && p.prompt.toLowerCase().includes(lowerCaseQuery)) {
             return true;
         }
-         // Search in filename
+         // Search in filename (for legacy projects)
         if (p.fileName && p.fileName.toLowerCase().includes(lowerCaseQuery)) {
             return true;
         }
         // Search within data
-        if(p.type === 'review') {
+        if (p.type === 'chat') {
+            if (p.data.messages.some(m => m.content.toLowerCase().includes(lowerCaseQuery))) {
+                return true;
+            }
+        } else if (p.type === 'review') {
             const { review, originalCode } = p.data;
             if (originalCode.toLowerCase().includes(lowerCaseQuery) ||
                 review.summary.toLowerCase().includes(lowerCaseQuery) ||

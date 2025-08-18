@@ -1,35 +1,4 @@
-import type { CodeReview, Settings, CodeGeneration, ImageGenerationResult } from '../types';
-
-const extractJsonFromText = (text: string): any => {
-    if (!text) {
-      throw new Error("The AI returned an empty content string.");
-    }
-    
-    let jsonText = text.trim();
-
-    const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-        jsonText = match[1].trim();
-    } else {
-        const firstBrace = jsonText.indexOf('{');
-        const lastBrace = jsonText.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-            jsonText = jsonText.substring(firstBrace, lastBrace + 1).trim();
-        }
-    }
-    
-    if (!jsonText) {
-      throw new Error("The AI returned an empty content string.");
-    }
-
-    try {
-      return JSON.parse(jsonText);
-    } catch(e) {
-      console.error("Failed to parse JSON response from OpenAI-compatible API. Raw content received:", text);
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      throw new Error(`The AI returned an invalid JSON response. Error: ${errorMessage}. This can sometimes happen with complex code. Please check the browser's developer console for the raw API output.`);
-    }
-};
+import type { Settings, ImageGenerationResult, ChatMessage, Persona } from '../types';
 
 const processStream = async (response: Response, onChunk: (chunk: string) => void): Promise<string> => {
     if (!response.body) {
@@ -58,6 +27,7 @@ const processStream = async (response: Response, onChunk: (chunk: string) => voi
                     const delta = parsed.choices[0]?.delta?.content;
                     if(delta) {
                         accumulatedText += delta;
+                        // For OpenAI, we send raw text chunks
                         onChunk(delta);
                     }
                 } catch (e) {
@@ -69,79 +39,25 @@ const processStream = async (response: Response, onChunk: (chunk: string) => voi
     return accumulatedText;
 }
 
-export const callOpenAICompatibleApiForImageGeneration = async (settings: Settings, prompt: string): Promise<ImageGenerationResult> => {
-    // This is a speculative implementation assuming a DALL-E-like API.
-    // The endpoint for images may be different from the chat completions one.
-    // We'll replace 'chat/completions' with 'images/generations' if present.
-    if (!settings.endpoint) {
-        throw new Error("OpenAI-compatible API endpoint not provided in settings.");
-    }
-    
-    const imageEndpoint = settings.endpoint.replace('chat/completions', 'images/generations');
 
-    try {
-        const response = await fetch(imageEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${settings.apiKey}`
-            },
-            body: JSON.stringify({
-                model: settings.model, // Or a specific image model like 'dall-e-3'
-                prompt: prompt,
-                n: 1,
-                size: "1024x1024",
-                response_format: "b64_json"
-            }),
-        });
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-        }
-        
-        const responseData = await response.json();
-        const base64Image = responseData.data?.[0]?.b64_json;
-        
-        if (!base64Image) {
-            throw new Error("API response did not contain valid base64 image data.");
-        }
-
-        return { base64Image };
-
-    } catch (error) {
-        console.error("Error calling OpenAI-compatible API for image generation:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to generate image from OpenAI-compatible API. This feature assumes a DALL-E-like API structure. Error: ${errorMessage}`);
-    }
-};
-
-export const callOpenAICompatibleApiForGeneration = async (settings: Settings, prompt: string, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeGeneration> => {
+export const callOpenAICompatibleApiForChat = async (
+    settings: Settings,
+    messages: ChatMessage[],
+    persona: Persona,
+    useWebSearch: boolean, // Note: Web search is a Gemini-specific feature via the API. This is a placeholder.
+    streamOptions: { signal: AbortSignal, onChunk: (chunk: string) => void }
+): Promise<{ text: string }> => {
   if (!settings.endpoint) {
     throw new Error("OpenAI-compatible API endpoint not provided in settings.");
   }
+  if (useWebSearch) {
+      console.warn("Web search is not natively supported by the OpenAI-compatible endpoint and is being ignored.");
+  }
 
-  const codeGenerationInterface = `
-    interface CodeGeneration {
-        generatedCode: string;
-    }
-  `;
-
-  const systemPrompt = `
-    You are an expert software engineer. Your task is to generate a complete and functional code snippet based on the user's request.
-    You MUST return your response as a single, valid JSON object that strictly adheres to the following TypeScript interface.
-    Do NOT include any other text, explanations, or markdown formatting like \`\`\`json outside of the JSON object itself.
-
-    CRITICAL: The 'generatedCode' field must contain the entire code as a SINGLE JSON STRING.
-    This requires escaping all special characters. For example:
-    - Double quotes (") must be escaped as (\\").
-    - Backslashes (\\) must be escaped as (\\\\).
-    - Newline characters must be escaped as (\\n).
-    This is MANDATORY for the JSON to be valid.
-
-    TypeScript interface for your response:
-    ${codeGenerationInterface}
-  `;
+  const apiMessages = [
+      { role: 'system', content: persona.systemInstruction },
+      ...messages.map(m => ({ role: m.role, content: m.content }))
+  ];
 
   try {
     const response = await fetch(settings.endpoint, {
@@ -152,13 +68,10 @@ export const callOpenAICompatibleApiForGeneration = async (settings: Settings, p
         },
         body: JSON.stringify({
             model: settings.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: prompt }
-            ],
-            stream: !!streamOptions,
+            messages: apiMessages,
+            stream: true,
         }),
-        signal: streamOptions?.signal,
+        signal: streamOptions.signal,
     });
     
     if (!response.ok) {
@@ -166,142 +79,15 @@ export const callOpenAICompatibleApiForGeneration = async (settings: Settings, p
         throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
     }
 
-    let accumulatedText;
-    if (streamOptions) {
-      accumulatedText = await processStream(response, streamOptions.onChunk);
-    } else {
-      const responseData = await response.json();
-      accumulatedText = responseData.choices[0]?.message?.content || '';
-    }
-
-    const generationData = extractJsonFromText(accumulatedText);
-    return generationData as CodeGeneration;
+    const accumulatedText = await processStream(response, streamOptions.onChunk);
+    
+    // The final response object for OpenAI will be simpler than Gemini's
+    return { text: accumulatedText };
 
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw error;
-    console.error("Error calling OpenAI-compatible API for generation:", error);
+    console.error("Error calling OpenAI-compatible API for chat:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to generate code from OpenAI-compatible API. ${errorMessage}`);
-  }
-};
-
-
-export const callOpenAICompatibleApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeReview> => {
-  if (!settings.endpoint) {
-    throw new Error("OpenAI-compatible API endpoint not provided in settings.");
-  }
-
-  let codeReviewInterface = `
-    interface Correction {
-      line?: number;
-      problematicCode: string;
-      suggestedFix: string;
-      explanation: string;
-    }
-    interface Recommendation {
-      area: string;
-      suggestion: string;
-      explanation: string;
-    }
-    interface CodeReview {
-      summary: string;
-      corrections: Correction[];
-      recommendations: Recommendation[];
-      correctedCode: string;
-      ${deepScan ? 'validationSummary: string;' : ''}
-    }
-  `;
-
-  let userPrompt = `
-    Please act as an expert code reviewer. Analyze the following code snippet for bugs, style issues, and potential improvements.
-  `;
-
-  if (customPrompt && customPrompt.trim() !== '') {
-    userPrompt += `
-    
-    The user has provided the following specific instructions. Please prioritize them in your review:
-    ---
-    ${customPrompt}
-    ---
-    `;
-  }
-
-  userPrompt += `
-  
-    Code to review:
-    \`\`\`
-    ${code}
-    \`\`\`
-  `;
-  
-  let systemPrompt = `
-    You are an expert code review assistant. Your task is to analyze user-provided code and return a detailed review.
-    You MUST return your response as a single, valid JSON object that strictly adheres to the following TypeScript interface.
-    Do NOT include any other text, explanations, or markdown formatting like \`\`\`json outside of the JSON object itself.
-  `;
-  
-  if (deepScan) {
-      systemPrompt += `
-      Your review process must be in two steps:
-      1.  **Initial Review**: First, identify all issues and generate a corrected version of the code.
-      2.  **Validation & Refinement**: After generating the corrected code, perform a critical "dry run" analysis on it. Pretend to execute the code and check for potential runtime errors, logic flaws, or unhandled edge cases. Refine the code further based on this validation. Your final 'correctedCode' output must be this refined, validated version.
-      
-      You must provide a summary of your validation process in the 'validationSummary' field.
-      `;
-  }
-  
-   systemPrompt += `
-    CRITICAL: The 'correctedCode' field must contain the entire code as a SINGLE JSON STRING.
-    This requires escaping all special characters correctly. For example:
-    - Double quotes (") must be escaped as (\\").
-    - Backslashes (\\) must be escaped as (\\\\).
-    - Newline characters must be escaped as (\\n).
-    This is MANDATORY for the JSON to be valid.
-
-    TypeScript interface for your response:
-    ${codeReviewInterface}
-  `;
-
-  try {
-    const response = await fetch(settings.endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${settings.apiKey}`
-        },
-        body: JSON.stringify({
-            model: settings.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            stream: !!streamOptions,
-        }),
-        signal: streamOptions?.signal,
-    });
-    
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
-    }
-
-    let accumulatedText;
-    if (streamOptions) {
-      accumulatedText = await processStream(response, streamOptions.onChunk);
-    } else {
-      const responseData = await response.json();
-      accumulatedText = responseData.choices[0]?.message?.content || '';
-    }
-
-    const reviewData = extractJsonFromText(accumulatedText);
-    return reviewData as CodeReview;
-
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-        throw error;
-    }
-    console.error("Error calling OpenAI-compatible API:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to get code review from OpenAI-compatible API. ${errorMessage}`);
+    throw new Error(`Failed to get response from OpenAI-compatible API. ${errorMessage}`);
   }
 };
