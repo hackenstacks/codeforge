@@ -1,15 +1,35 @@
 import type { CodeReview, Settings } from '../types';
 
-const getJsonFromResponse = (text: string): any => {
-    const match = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (match && match[1]) {
-        return JSON.parse(match[1]);
+const extractJsonFromText = (text: string): any => {
+    if (!text) {
+      throw new Error("The AI returned an empty content string.");
     }
+    
+    let jsonText = text.trim();
+
+    // 1. Try to find JSON within ```json ... ```
+    const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+    if (match && match[1]) {
+        jsonText = match[1].trim();
+    } else {
+        // 2. If not found, find the first '{' and last '}'
+        const firstBrace = jsonText.indexOf('{');
+        const lastBrace = jsonText.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = jsonText.substring(firstBrace, lastBrace + 1).trim();
+        }
+    }
+    
+    if (!jsonText) {
+      throw new Error("The AI returned an empty content string.");
+    }
+
     try {
-      return JSON.parse(text);
+      return JSON.parse(jsonText);
     } catch(e) {
-      console.error("Failed to parse JSON response directly, and no markdown block found.", e);
-      throw new Error("The AI response was not valid JSON.");
+      console.error("Failed to parse JSON response from OpenAI-compatible API. Raw content received:", text);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      throw new Error(`The AI returned an invalid JSON response. Error: ${errorMessage}. This can sometimes happen with complex code. Please check the browser's developer console for the raw API output.`);
     }
 };
 
@@ -66,6 +86,8 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
     You MUST return your response as a single, valid JSON object that strictly adheres to the following TypeScript interface.
     Do NOT include any other text, explanations, or markdown formatting like \`\`\`json outside of the JSON object itself.
 
+    CRITICAL: The value for the 'correctedCode' field must be a single, valid JSON string. All special characters within the code, especially double quotes (") and backslashes (\\), must be properly escaped (e.g., \\" and \\\\) to ensure the final output is a valid JSON object.
+
     TypeScript interface for your response:
     ${codeReviewInterface}
   `;
@@ -98,11 +120,12 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
         throw new Error("Received an empty response from the API.");
     }
 
-    const reviewData = getJsonFromResponse(content);
+    const reviewData = extractJsonFromText(content);
     return reviewData as CodeReview;
 
   } catch (error) {
     console.error("Error calling OpenAI-compatible API:", error);
-    throw new Error("Failed to get code review. Check endpoint, API key, and model name.");
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to get code review from OpenAI-compatible API. ${errorMessage}`);
   }
 };

@@ -64,6 +64,26 @@ const reviewSchema = {
   required: ["summary", "corrections", "recommendations", "correctedCode"],
 };
 
+const extractJsonFromText = (text: string): string => {
+    if (!text) return '';
+    let jsonText = text.trim();
+
+    // 1. Try to find JSON within ```json ... ```
+    const match = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+    if (match && match[1]) {
+        jsonText = match[1].trim();
+    } else {
+        // 2. If not found, find the first '{' and last '}'
+        const firstBrace = jsonText.indexOf('{');
+        const lastBrace = jsonText.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+            jsonText = jsonText.substring(firstBrace, lastBrace + 1).trim();
+        }
+    }
+    return jsonText;
+};
+
+
 export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string): Promise<CodeReview> => {
   if (!settings.apiKey) {
     throw new Error("Google API Key not provided in settings.");
@@ -75,6 +95,8 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
     Please act as an expert code reviewer. Analyze the following code snippet for bugs, style issues, and potential improvements.
     Provide a detailed review in the specified JSON format.
     Most importantly, provide the full, corrected version of the code in the 'correctedCode' field. This corrected code should be ready to be copied and used directly, incorporating all your suggested fixes.
+    
+    CRITICAL: The value for 'correctedCode' must be a single, valid JSON string. All special characters, especially double quotes (") and backslashes (\\), within the code must be properly escaped (e.g., \\" and \\\\). Failure to do so will result in an invalid JSON object.
   `;
 
   if (customPrompt && customPrompt.trim() !== '') {
@@ -105,13 +127,10 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
       },
     });
 
-    // The Gemini API can return a response with no text if the content is blocked
-    // or if the model fails to generate a response that fits the schema.
-    // We need to handle this case gracefully.
-    if (!response || !response.text) {
+    const rawText = response?.text;
+
+    if (!rawText) {
         let reason = "The API returned an empty or invalid response.";
-        // Dig into the response to find a more specific reason, if available.
-        // This structure is based on how Gemini API typically reports issues.
         const candidates = (response as any)?.candidates;
         const promptFeedback = (response as any)?.promptFeedback;
 
@@ -124,9 +143,15 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
         throw new Error(reason);
     }
 
-    const jsonText = response.text.trim();
-    const reviewData = JSON.parse(jsonText);
-    return reviewData as CodeReview;
+    const jsonText = extractJsonFromText(rawText);
+    try {
+        const reviewData = JSON.parse(jsonText);
+        return reviewData as CodeReview;
+    } catch (parseError) {
+        console.error("Failed to parse JSON response from Gemini API. Raw response text:", rawText);
+        const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+        throw new Error(`The AI returned an invalid JSON response. Error: ${errorMessage}. This can sometimes happen with complex code. Please check the browser's developer console for the raw API output.`);
+    }
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
