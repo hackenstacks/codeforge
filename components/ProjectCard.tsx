@@ -25,16 +25,17 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onLoad, onDel
 
     const getTitle = () => {
         if (project.prompt) return project.prompt;
-        if (project.type === 'chat') return project.data.messages[0]?.content || 'Chat Session';
+        if (project.type === 'chat') return project.data.messages[0]?.content.substring(0, 50) || 'Chat Session';
         if (project.type === 'review') return project.fileName || 'Code Review';
-        if (project.type === 'code') return 'Generated Code';
+        if (project.type === 'code') return 'Code Generation';
         if (project.type === 'image') return 'Generated Image';
         return 'Project';
     };
     
     const getDescription = () => {
         if (project.type === 'chat') {
-             return `Chat with ${project.data.persona.name}. Last message: "${project.data.messages[project.data.messages.length - 1]?.content.substring(0, 50) ?? ''}..."`;
+             const lastMessage = project.data.messages[project.data.messages.length - 1]?.content || '';
+             return `Chat with ${project.data.persona.name}. Last: "${lastMessage.substring(0, 50)}..."`;
         }
         if (project.prompt) return `Prompt: "${project.prompt.substring(0, 50)}..."`;
         if (project.type === 'review') return project.data.review.summary.substring(0, 50) + '...';

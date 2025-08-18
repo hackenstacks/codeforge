@@ -48,7 +48,7 @@ export const callOpenAICompatibleApiForChat = async (
     streamOptions: { signal: AbortSignal, onChunk: (chunk: string) => void }
 ): Promise<{ text: string }> => {
   if (!settings.endpoint) {
-    throw new Error("OpenAI-compatible API endpoint not provided in settings.");
+    throw new Error("OpenAI-compatible API endpoint not provided. Please check your settings.");
   }
   if (useWebSearch) {
       console.warn("Web search is not natively supported by the OpenAI-compatible endpoint and is being ignored.");

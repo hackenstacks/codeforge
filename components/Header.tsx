@@ -3,9 +3,12 @@ import { ForgeIcon } from './icons/ForgeIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import { DatabaseIcon } from './icons/DatabaseIcon';
 import { HelpIcon } from './icons/HelpIcon';
+import { LockIcon } from './icons/LockIcon';
+import { UnlockIcon } from './icons/UnlockIcon';
 import { Tooltip } from './Tooltip';
 import { ThemeToggle } from './ThemeToggle';
 import type { Persona } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
     onSettingsClick: () => void;
@@ -26,13 +29,14 @@ export const Header: React.FC<HeaderProps> = ({
     currentView,
     activePersona
 }) => {
+  const { isLocked, logout } = useAuth();
   return (
     <header className="bg-light-surface/80 dark:bg-gray-800/50 backdrop-blur-sm border-b border-light-border dark:border-gray-700 sticky top-0 z-30">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center">
             <ForgeIcon className="h-8 w-8 text-blue-500" />
             <h1 className="ml-3 text-2xl font-bold text-light-text-primary dark:text-white">
-                Code Forge 
+                AI Forge 
                 <span className="text-gray-500 text-lg font-normal">
                     {currentView === 'vault' ? '/ My Forge' : ''}
                 </span>
@@ -63,6 +67,11 @@ export const Header: React.FC<HeaderProps> = ({
             <Tooltip text="Settings">
                 <button onClick={onSettingsClick} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-700 hover:text-light-text-primary dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-gray-800 focus:ring-blue-500" aria-label="Open settings">
                     <SettingsIcon className="h-6 w-6" />
+                </button>
+            </Tooltip>
+             <Tooltip text={isLocked ? "Unlock Vault" : "Lock Vault"}>
+                <button onClick={logout} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-700 hover:text-light-text-primary dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-gray-800 focus:ring-blue-500" aria-label="Lock Vault">
+                    {isLocked ? <LockIcon className="h-6 w-6"/> : <UnlockIcon className="h-6 w-6" />}
                 </button>
             </Tooltip>
             <ThemeToggle />

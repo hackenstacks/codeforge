@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
+import { useWorkspace } from '../contexts/WorkspaceContext';
 import { getChatResponse } from '../services/llmService';
 import type { ChatMessage, Persona, Project, ChatProject, GroundingChunk } from '../types';
 import { ChatMessageBubble } from './ChatMessageBubble';
@@ -7,8 +8,9 @@ import { Loader } from './Loader';
 import { UploadIcon } from './icons/UploadIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { PaperPlaneIcon } from './icons/PaperPlaneIcon';
+import { FileIcon } from './icons/FileIcon';
 import { Tooltip } from './Tooltip';
-import { db } from '../db';
+import { dbService } from '../db';
 import { GenerateContentResponse } from '@google/genai';
 
 interface ChatViewProps {
@@ -18,6 +20,7 @@ interface ChatViewProps {
 
 export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) => {
     const { settings } = useSettings();
+    const { assets, activeAsset, loadAssets } = useWorkspace();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +29,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
     const [currentProject, setCurrentProject] = useState<ChatProject | null>(null);
 
     const abortControllerRef = useRef<AbortController | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -40,22 +42,25 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
     useEffect(() => {
         const loadProject = async () => {
             if (projectId) {
-                const project = await db.getProject(projectId) as ChatProject;
+                const project = await dbService.getProject(projectId) as ChatProject;
                 if (project && project.type === 'chat') {
                     setMessages(project.data.messages);
+                    loadAssets(project.data.workspaceAssets || []);
                     setCurrentProject(project);
                 } else {
                     console.log("New chat session started.");
                     setMessages([]);
+                    loadAssets([]);
                     setCurrentProject(null);
                 }
             } else {
                 setMessages([]);
+                loadAssets([]);
                 setCurrentProject(null);
             }
         };
         loadProject();
-    }, [projectId]);
+    }, [projectId, loadAssets]);
 
     const handleSendMessage = useCallback(async (content: string) => {
         if (isLoading || !content.trim()) return;
@@ -75,10 +80,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
             const streamOptions = {
                 signal: abortControllerRef.current.signal,
                 onChunk: (chunk: GenerateContentResponse | string) => {
-                    // Handle different chunk types from different services
-                    if (typeof chunk === 'string') { // OpenAI compatible
+                    if (typeof chunk === 'string') {
                          setMessages(prev => prev.map((msg, i) => i === prev.length - 1 ? { ...msg, content: msg.content + chunk } : msg));
-                    } else { // Gemini
+                    } else { 
                         const text = chunk.text;
                         if (text) {
                             setMessages(prev => prev.map((msg, i) => i === prev.length - 1 ? { ...msg, content: msg.content + text } : msg));
@@ -104,21 +108,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
             await getChatResponse(settings, newMessages, activePersona, useWebSearch, streamOptions);
             
         } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') {
-                // Don't show an error if the user aborted the request
-            } else {
-                const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+            if (err instanceof Error && err.name !== 'AbortError') {
+                const errorMessage = err.message;
                 setError(errorMessage);
                 setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: `Sorry, an error occurred: ${errorMessage}` }]);
             }
         } finally {
             setIsLoading(false);
-            if (useWebSearch) setUseWebSearch(false); // Reset after use
+            if (useWebSearch) setUseWebSearch(false); 
         }
     }, [isLoading, messages, settings, activePersona, useWebSearch]);
     
     useEffect(() => {
-        // Save project state whenever messages change after a response is complete
+        // Auto-save project
         if (!isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length-1].content) {
             const title = messages[0].content.substring(0, 50);
             const projectData: Omit<ChatProject, 'id' | 'createdAt'> = {
@@ -127,36 +129,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                 tags: currentProject?.tags || [],
                 data: {
                     messages: messages,
-                    persona: activePersona
+                    persona: activePersona,
+                    workspaceAssets: assets
                 }
             };
             
-            if (currentProject && currentProject.id) {
-                 db.updateProject({ ...projectData, id: currentProject.id, createdAt: currentProject.createdAt } as Project);
+            if (currentProject?.id) {
+                 dbService.updateProject({ ...projectData, id: currentProject.id, createdAt: currentProject.createdAt } as Project);
             } else {
-                 db.addProject(projectData).then(id => {
+                 dbService.addProject(projectData).then(id => {
                      setCurrentProject({ ...projectData, id, createdAt: new Date() } as ChatProject);
                  });
             }
         }
-    }, [messages, isLoading, activePersona, currentProject]);
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const text = e.target?.result;
-                if (typeof text === 'string') {
-                    const fileContent = `The user has uploaded a file named "${file.name}". Here is its content:\n\n\`\`\`\n${text}\n\`\`\`\n\nMy request is: ${input}`;
-                    setInput(fileContent);
-                }
-            };
-            reader.onerror = () => setError("Failed to read the file.");
-            reader.readAsText(file);
-        }
-        if (event.target) event.target.value = ''; // Reset file input
-    };
+    }, [messages, isLoading, activePersona, currentProject, assets]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -170,6 +156,15 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
             setIsLoading(false);
+        }
+    };
+
+    const handleReferenceActiveAsset = () => {
+        if (activeAsset) {
+            const fileReference = `The user has referenced the file "${activeAsset.name}". Here is its content:\n\n\`\`\`\n${activeAsset.content}\n\`\`\`\n\nMy request is: ${input}`;
+            setInput(fileReference);
+            const textarea = document.querySelector('textarea');
+            if (textarea) textarea.focus();
         }
     }
 
@@ -213,7 +208,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={`Message ${activePersona.name}... (Shift+Enter for new line)`}
-                        className="w-full h-12 p-3 pr-28 bg-light-surface dark:bg-gray-700 text-light-text-primary dark:text-gray-200 border border-light-border dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        className="w-full h-12 p-3 pl-12 pr-28 bg-light-surface dark:bg-gray-700 text-light-text-primary dark:text-gray-200 border border-light-border dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                         rows={1}
                         disabled={isLoading}
                         style={{ height: 'auto', minHeight: '3rem', maxHeight: '12rem' }}
@@ -223,12 +218,14 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                             target.style.height = `${target.scrollHeight}px`;
                         }}
                     />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                         <Tooltip text="Upload File">
-                            <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-600" disabled={isLoading}>
-                                <UploadIcon className="h-5 w-5" />
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center">
+                        <Tooltip text="Reference Active File">
+                             <button onClick={handleReferenceActiveAsset} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-600 disabled:opacity-50" disabled={!activeAsset}>
+                                <FileIcon className="h-5 w-5" />
                             </button>
                         </Tooltip>
+                    </div>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         <Tooltip text={useWebSearch ? "Web Search Enabled" : "Enable Web Search"}>
                             <button onClick={() => setUseWebSearch(!useWebSearch)} className={`p-2 rounded-full transition-colors ${useWebSearch ? 'text-blue-500 bg-blue-500/20' : 'text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-600'}`} disabled={isLoading}>
                                 <SearchIcon className="h-5 w-5" />
@@ -239,7 +236,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                                 <PaperPlaneIcon className="h-5 w-5" />
                             </button>
                         </Tooltip>
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                     </div>
                 </div>
             </div>

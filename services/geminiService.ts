@@ -18,7 +18,7 @@ export const callGeminiApiForChat = async (
     streamOptions: { signal: AbortSignal, onChunk: (chunk: GenerateContentResponse) => void }
 ): Promise<GenerateContentResponse> => {
     if (!settings.apiKey) {
-        throw new Error("Google API Key not provided in settings.");
+        throw new Error("Google API Key not provided. Please check your settings.");
     }
     
     const ai = new GoogleGenAI({ apiKey: settings.apiKey });

@@ -1,31 +1,28 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import type { Project } from './types';
+import type { Project, EncryptedProject } from './types';
+import { type CryptoService } from './services/cryptoService';
 
-const DB_NAME = 'CodeForgeDB';
-const DB_VERSION = 1; // Remains 1, as we are not changing structure, just data type logic
+const DB_NAME = 'AIForgeDB';
+const DB_VERSION = 1; 
 const STORE_NAME = 'projects';
 
-interface CodeForgeDB extends DBSchema {
+interface AIForgeDB extends DBSchema {
   [STORE_NAME]: {
     key: number;
-    value: Project;
-    indexes: { 'createdAt': Date, 'tags': string[] };
+    value: EncryptedProject;
   };
 }
 
-let dbPromise: Promise<IDBPDatabase<CodeForgeDB>> | null = null;
+let dbPromise: Promise<IDBPDatabase<AIForgeDB>> | null = null;
 
-const getDb = (): Promise<IDBPDatabase<CodeForgeDB>> => {
+const getDb = (): Promise<IDBPDatabase<AIForgeDB>> => {
   if (!dbPromise) {
-    dbPromise = openDB<CodeForgeDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<AIForgeDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(STORE_NAME)) {
-            const store = db.createObjectStore(STORE_NAME, {
+            db.createObjectStore(STORE_NAME, {
                 keyPath: 'id',
-                autoIncrement: true,
             });
-            store.createIndex('createdAt', 'createdAt');
-            store.createIndex('tags', 'tags', { multiEntry: true });
         }
       },
     });
@@ -33,75 +30,91 @@ const getDb = (): Promise<IDBPDatabase<CodeForgeDB>> => {
   return dbPromise;
 };
 
-export const db = {
-  async addProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<number> {
-    const db = await getDb();
-    const newProject: Omit<Project, 'id'> = {
-        ...project,
-        createdAt: new Date(),
-    };
-    return db.add(STORE_NAME, newProject as Project);
-  },
+// The DB service is now a class that holds the crypto key
+export class DBService {
+    private crypto: CryptoService | null = null;
 
-  async updateProject(project: Project): Promise<number> {
-    const db = await getDb();
-    return db.put(STORE_NAME, project);
-  },
-
-  async getProject(id: number): Promise<Project | undefined> {
-    const db = await getDb();
-    return db.get(STORE_NAME, id);
-  },
-
-  async getAllProjects(): Promise<Project[]> {
-    const db = await getDb();
-    const projects = await db.getAllFromIndex(STORE_NAME, 'createdAt');
-    return projects.reverse(); // Sort newest first
-  },
-
-  async searchProjects(query: string): Promise<Project[]> {
-    const db = await getDb();
-    const allProjects = await db.getAll(STORE_NAME);
-    
-    const lowerCaseQuery = query.toLowerCase();
-
-    if (!lowerCaseQuery) {
-        return allProjects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    setCryptoService(crypto: CryptoService) {
+        this.crypto = crypto;
     }
 
-    return allProjects.filter(p => {
-        // Search in tags
-        if (p.tags && p.tags.some(tag => tag.toLowerCase().includes(lowerCaseQuery))) {
-            return true;
+    private ensureCrypto() {
+        if (!this.crypto) {
+            throw new Error("Crypto service not initialized. Is the vault unlocked?");
         }
-        // Search in prompt/title
-        if (p.prompt && p.prompt.toLowerCase().includes(lowerCaseQuery)) {
-            return true;
-        }
-         // Search in filename (for legacy projects)
-        if (p.fileName && p.fileName.toLowerCase().includes(lowerCaseQuery)) {
-            return true;
-        }
-        // Search within data
-        if (p.type === 'chat') {
-            if (p.data.messages.some(m => m.content.toLowerCase().includes(lowerCaseQuery))) {
-                return true;
-            }
-        } else if (p.type === 'review') {
-            const { review, originalCode } = p.data;
-            if (originalCode.toLowerCase().includes(lowerCaseQuery) ||
-                review.summary.toLowerCase().includes(lowerCaseQuery) ||
-                review.correctedCode.toLowerCase().includes(lowerCaseQuery)
-            ) return true;
-        } else if (p.type === 'code') {
-            if (p.data.generatedCode.toLowerCase().includes(lowerCaseQuery)) return true;
-        }
-        return false;
-    }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  },
+        return this.crypto;
+    }
 
-  async deleteProject(id: number): Promise<void> {
-    const db = await getDb();
-    return db.delete(STORE_NAME, id);
-  },
-};
+    async addProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<number> {
+        const crypto = this.ensureCrypto();
+        const db = await getDb();
+        const newProject: Omit<Project, 'id'> = {
+            ...project,
+            createdAt: new Date(),
+        };
+        const ciphertext = await crypto.encrypt(newProject);
+        const keys = await db.getAllKeys(STORE_NAME);
+        const lastId = keys.length > 0 ? (keys[keys.length - 1] as number) : 0;
+        const newId = lastId + 1;
+        await db.add(STORE_NAME, { id: newId, ciphertext });
+        return newId;
+    }
+
+    async updateProject(project: Project): Promise<number> {
+        const crypto = this.ensureCrypto();
+        const db = await getDb();
+        if (!project.id) throw new Error("Project must have an ID to be updated.");
+        const ciphertext = await crypto.encrypt(project);
+        return db.put(STORE_NAME, { id: project.id, ciphertext });
+    }
+
+    async getProject(id: number): Promise<Project | undefined> {
+        const crypto = this.ensureCrypto();
+        const db = await getDb();
+        const encryptedProject = await db.get(STORE_NAME, id);
+        if (!encryptedProject) return undefined;
+        return crypto.decrypt<Project>(encryptedProject.ciphertext);
+    }
+
+    async getAllProjects(): Promise<Project[]> {
+        const crypto = this.ensureCrypto();
+        const db = await getDb();
+        const encryptedProjects = await db.getAll(STORE_NAME);
+        const projects = await Promise.all(
+            encryptedProjects.map(p => crypto.decrypt<Project>(p.ciphertext))
+        );
+        return projects.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    async searchProjects(query: string): Promise<Project[]> {
+        const allProjects = await this.getAllProjects();
+        const lowerCaseQuery = query.toLowerCase();
+
+        if (!lowerCaseQuery) return allProjects;
+
+        return allProjects.filter(p => {
+            if (p.tags?.some(tag => tag.toLowerCase().includes(lowerCaseQuery))) return true;
+            if (p.prompt?.toLowerCase().includes(lowerCaseQuery)) return true;
+            if (p.fileName?.toLowerCase().includes(lowerCaseQuery)) return true;
+            if (p.type === 'chat') {
+                return p.data.messages.some(m => m.content.toLowerCase().includes(lowerCaseQuery));
+            } else if (p.type === 'review') {
+                const { review, originalCode } = p.data;
+                return originalCode.toLowerCase().includes(lowerCaseQuery) ||
+                    review.summary.toLowerCase().includes(lowerCaseQuery) ||
+                    review.correctedCode.toLowerCase().includes(lowerCaseQuery);
+            } else if (p.type === 'code') {
+                return p.data.generatedCode.toLowerCase().includes(lowerCaseQuery);
+            }
+            return false;
+        });
+    }
+
+    async deleteProject(id: number): Promise<void> {
+        this.ensureCrypto();
+        const db = await getDb();
+        return db.delete(STORE_NAME, id);
+    }
+}
+
+export const dbService = new DBService();

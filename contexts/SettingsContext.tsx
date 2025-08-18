@@ -17,7 +17,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [settings, setSettings] = useLocalStorage<Settings>('code-forge-settings', defaultSettings);
+    const [settings, setSettings] = useLocalStorage<Settings>('ai-forge-settings', defaultSettings);
 
     return (
         <SettingsContext.Provider value={{ settings, setSettings }}>

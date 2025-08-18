@@ -32,34 +32,34 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         <div className="p-6 space-y-6 overflow-y-auto">
-            <HelpSection title="Welcome to Code Forge">
-                <p>Code Forge is your AI-powered assistant for coding tasks. You can review existing code, generate new code from a prompt, or even create images. All your work can be saved, tagged, and searched in your private, local "Forge Vault".</p>
+            <HelpSection title="Welcome to AI Forge">
+                <p>AI Forge is your secure, AI-powered assistant for coding and creative tasks. You can chat with different AI personas, generate and review code, create images, and manage all your project files in an encrypted, local vault.</p>
             </HelpSection>
 
-            <HelpSection title="Core Features (Modes)">
-                <p>Use the toggle at the top to switch between modes:</p>
+            <HelpSection title="The Encrypted Vault">
+                <p>Security is paramount. On first launch, you will be asked to set a Master Password.</p>
                 <ul className="list-disc list-inside space-y-2 pl-4">
-                    <li><b>Review Code:</b> Paste or upload a code file. The AI will analyze it for bugs, style issues, and potential improvements, providing a diff view of the changes.</li>
-                    <li><b>Generate Code:</b> Describe the functionality you need in the prompt box, and the AI will write the code for you.</li>
-                    <li><b>Generate Image:</b> Describe a scene or concept, and the AI will generate an image. (This feature is provider-dependent, currently enabled for Gemini).</li>
+                    <li><b>Encryption:</b> All your data—chats, personas, and workspace files—is encrypted on your local machine using this password.</li>
+                    <li><b>Unlocking:</b> You must enter your password each time you open the app to decrypt and access your data.</li>
+                    <li><b>Locking:</b> You can manually lock the vault at any time by clicking the lock icon in the header.</li>
+                    <li><b>IMPORTANT:</b> Your password is never stored. If you forget it, your data cannot be recovered.</li>
                 </ul>
             </HelpSection>
 
-            <HelpSection title="Advanced Analysis">
-                <p>When in Review or Generate mode, you can use these toggles:</p>
+            <HelpSection title="Main Interface">
+                <p>The interface is a split view with two main panels:</p>
                  <ul className="list-disc list-inside space-y-2 pl-4">
-                    <li><b>Deep Scan:</b> A more thorough but slower analysis. The AI first corrects the code, then performs a "dry run" to validate its own changes for logical errors, refining it further.</li>
-                    <li><b>Live Thinking:</b> See the AI's raw JSON response being built in real-time. This mode also provides an "Abort" button to stop the process if needed.</li>
+                    <li><b>Chat Panel (Left):</b> This is where you interact with the AI. You can switch AI personas, toggle tools like Web Search, and have conversations.</li>
+                    <li><b>Workspace Panel (Right):</b> This is your sandbox for project files. You can create new documents or upload existing code, text, or images. You can then reference these files in your chat to provide context to the AI.</li>
                 </ul>
             </HelpSection>
 
-             <HelpSection title="The Forge Vault (Your Local Database)">
-                <p>The Forge Vault is your personal, searchable database of saved projects, stored securely in your browser.</p>
+             <HelpSection title="The Forge Vault (Your Database)">
+                <p>Click the database icon in the header to access your personal, searchable database of saved projects.</p>
                  <ul className="list-disc list-inside space-y-2 pl-4">
-                    <li><b>Saving:</b> After any task is completed, a "Save to Forge" panel appears. Add descriptive tags (e.g., "python", "api-client") and click "Save".</li>
-                    <li><b>Accessing:</b> Click the database icon in the header to open your Vault.</li>
+                    <li><b>Saving:</b> Chats are saved automatically. You can add tags and manage them from the vault.</li>
                     <li><b>Searching:</b> Use the search bar to find projects by their content, prompt, filename, or tags.</li>
-                     <li><b>Loading:</b> Click the "Load" button on any project card to bring it back into the main workspace for viewing or further work.</li>
+                     <li><b>Loading:</b> Click the "Load" button on any chat project to resume that conversation.</li>
                 </ul>
             </HelpSection>
 

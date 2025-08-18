@@ -1,29 +1,33 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Header } from './components/Header';
-import { Loader } from './components/Loader';
-import { SettingsProvider, useSettings } from './contexts/SettingsContext';
-import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { SettingsProvider } from './contexts/SettingsContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { SettingsModal } from './components/SettingsModal';
 import { HelpModal } from './components/HelpModal';
 import { PersonaModal } from './components/PersonaModal';
 import { ForgeVault } from './components/ForgeVault';
 import { ChatView } from './components/ChatView';
+import { LockScreen } from './components/LockScreen';
+import { ResizablePanel } from './components/ResizablePanel';
+import { Workspace } from './components/Workspace';
 import type { Project, Persona } from './types';
 import { defaultPersonas } from './personas';
 import useLocalStorage from './hooks/useLocalStorage';
 
 type View = 'chat' | 'vault';
 
-const AppContent: React.FC = () => {
+const AppUI: React.FC = () => {
   const [view, setView] = useState<View>('chat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isPersonaModalOpen, setPersonaModalOpen] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<number | null>(null);
 
-  const [personas, setPersonas] = useLocalStorage<Persona[]>('code-forge-personas', defaultPersonas);
-  const [activePersona, setActivePersona] = useLocalStorage<Persona>('code-forge-active-persona', defaultPersonas[0]);
+  const [personas, setPersonas] = useLocalStorage<Persona[]>('ai-forge-personas', defaultPersonas);
+  const [activePersona, setActivePersona] = useLocalStorage<Persona>('ai-forge-active-persona', defaultPersonas[0]);
   
   const handleNewChat = () => {
     setCurrentChatId(null);
@@ -34,7 +38,6 @@ const AppContent: React.FC = () => {
     if (project.type === 'chat' && project.id) {
         setCurrentChatId(project.id);
     } else {
-        // Handle legacy project types or create a new chat from them
         console.warn("Legacy project type loaded, starting a new chat instead.");
         setCurrentChatId(null); 
     }
@@ -42,7 +45,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-gray-900 text-light-text-primary dark:text-gray-200 font-sans">
+    <div className="min-h-screen bg-light-bg dark:bg-gray-900 text-light-text-primary dark:text-gray-200 font-sans flex flex-col">
       <Header 
         onSettingsClick={() => setIsSettingsOpen(true)} 
         onHelpClick={() => setIsHelpOpen(true)}
@@ -52,13 +55,16 @@ const AppContent: React.FC = () => {
         currentView={view}
         activePersona={activePersona}
       />
-      <main className="container mx-auto p-4 md:px-8 h-[calc(100vh-69px)]">
+      <main className="container mx-auto p-4 md:px-8 flex-grow h-[calc(100vh-69px)]">
         {view === 'chat' ? (
+          <ResizablePanel>
             <ChatView 
                 key={currentChatId} // Force re-mount on new chat
                 projectId={currentChatId}
                 activePersona={activePersona}
             />
+            <Workspace />
+          </ResizablePanel>
         ) : (
             <ForgeVault setView={setView} onLoadProject={handleLoadProject} />
         )}
@@ -75,12 +81,21 @@ const AppContent: React.FC = () => {
       />
     </div>
   );
+}
+
+const AppContent: React.FC = () => {
+  const { isLocked } = useAuth();
+  return isLocked ? <LockScreen /> : <AppUI />;
 };
 
 const App: React.FC = () => (
   <SettingsProvider>
     <ThemeProvider>
-        <AppContent />
+      <AuthProvider>
+        <WorkspaceProvider>
+          <AppContent />
+        </WorkspaceProvider>
+      </AuthProvider>
     </ThemeProvider>
   </SettingsProvider>
 );

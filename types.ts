@@ -60,6 +60,17 @@ export interface Persona {
     avatar: string; // emoji
 }
 
+// ---- Workspace Types ----
+export type WorkspaceAssetType = 'text' | 'code' | 'image';
+
+export interface WorkspaceAsset {
+    id: string;
+    name: string;
+    type: WorkspaceAssetType;
+    content: string; // For text/code, it's the text content. For images, it's the base64 string.
+    mimeType?: string; // e.g., 'image/png'
+}
+
 
 // ---- Database Project Types ----
 export type ProjectType = 'review' | 'code' | 'image' | 'chat';
@@ -69,8 +80,8 @@ export interface ProjectDataReview {
     originalCode: string;
 }
 
-export interface ProjectDataCode {
-    generatedCode: string;
+export interface ProjectDataGeneratedCode {
+    generatedCode:string;
 }
 
 export interface ProjectDataImage {
@@ -80,6 +91,7 @@ export interface ProjectDataImage {
 export interface ProjectDataChat {
     messages: ChatMessage[];
     persona: Persona;
+    workspaceAssets?: WorkspaceAsset[];
 }
 
 interface BaseProject {
@@ -97,7 +109,7 @@ export interface ReviewProject extends BaseProject {
 
 export interface CodeProject extends BaseProject {
     type: 'code';
-    data: ProjectDataCode;
+    data: ProjectDataGeneratedCode;
 }
 
 export interface ImageProject extends BaseProject {
@@ -111,3 +123,9 @@ export interface ChatProject extends BaseProject {
 }
 
 export type Project = ReviewProject | CodeProject | ImageProject | ChatProject;
+
+// ---- Encrypted DB Type ----
+export interface EncryptedProject {
+    id: number;
+    ciphertext: string;
+}

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Code Forge",
+  "name": "AI Forge",
   "version": "1.0",
   "description": "An AI-powered code reviewer that supports Gemini and local OpenAI-compatible models.",
   "permissions": [

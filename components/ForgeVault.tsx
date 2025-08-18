@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '../db';
+import { dbService } from '../db';
 import type { Project } from '../types';
 import { ProjectCard } from './ProjectCard';
 import { Loader } from './Loader';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ForgeVaultProps {
-    setView: (view: 'chat' | 'vault') => void;
+    setView: (view: 'chat') => void;
     onLoadProject: (project: Project) => void;
 }
 
@@ -13,18 +14,20 @@ export const ForgeVault: React.FC<ForgeVaultProps> = ({ setView, onLoadProject }
     const [projects, setProjects] = useState<Project[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const { isLocked } = useAuth();
 
     const fetchProjects = useCallback(async () => {
+        if (isLocked) return;
         setIsLoading(true);
         try {
-            const results = await db.searchProjects(searchTerm);
+            const results = await dbService.searchProjects(searchTerm);
             setProjects(results);
         } catch (error) {
             console.error("Failed to fetch projects:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [searchTerm]);
+    }, [searchTerm, isLocked]);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -37,7 +40,7 @@ export const ForgeVault: React.FC<ForgeVaultProps> = ({ setView, onLoadProject }
     const handleDeleteProject = async (id: number) => {
         if (window.confirm('Are you sure you want to delete this project? This cannot be undone.')) {
             try {
-                await db.deleteProject(id);
+                await dbService.deleteProject(id);
                 fetchProjects(); // Refresh the list
             } catch (error) {
                 console.error("Failed to delete project:", error);
@@ -77,7 +80,7 @@ export const ForgeVault: React.FC<ForgeVaultProps> = ({ setView, onLoadProject }
             ) : (
                 <div className="text-center py-16 text-gray-500">
                     <h3 className="text-xl font-semibold">Your Forge is Empty</h3>
-                    <p className="mt-2">Save a review, generated code, or an image to get started.</p>
+                    <p className="mt-2">Save a chat, persona, or file to get started.</p>
                 </div>
             )}
         </div>
