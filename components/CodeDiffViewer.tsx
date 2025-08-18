@@ -18,12 +18,14 @@ export const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({ originalCode, co
   }), [originalCode, correctedCode]);
 
   const findExplanationForLine = (lineNumber: number, content: string): string | null => {
+    // Prioritize finding by exact line number
     const byLine = corrections.find(c => c.line === lineNumber);
     if (byLine) return byLine.explanation;
     
+    // Fallback for fuzzy matching content if line number is off or missing
     const byContent = corrections.find(c => 
-        (c.problematicCode && content.includes(c.problematicCode.trim())) ||
-        (c.suggestedFix && content.includes(c.suggestedFix.trim()))
+        (c.problematicCode && content.trim().includes(c.problematicCode.trim())) ||
+        (c.suggestedFix && content.trim().includes(c.suggestedFix.trim()))
     );
     return byContent ? byContent.explanation : null;
   };
@@ -50,11 +52,17 @@ export const CodeDiffViewer: React.FC<CodeDiffViewerProps> = ({ originalCode, co
                         let explanation: string | null = null;
                         
                         if (part.added) {
+                           // For added lines, the "original" line number is the one just before it.
                            explanation = findExplanationForLine(currentOriginalLineNumber, line);
-                        } else {
+                        } else if (!part.removed) {
                            originalLineCounter++;
                            currentOriginalLineNumber = originalLineCounter;
+                        } else { // removed line
+                           originalLineCounter++;
+                           currentOriginalLineNumber = originalLineCounter;
+                           explanation = findExplanationForLine(currentOriginalLineNumber, line);
                         }
+
 
                         let className = "flex items-start -mx-4 px-4";
                         let lineSymbol = ' ';

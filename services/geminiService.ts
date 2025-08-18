@@ -86,7 +86,7 @@ const extractJsonFromText = (text: string): string => {
 };
 
 
-export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean): Promise<CodeReview> => {
+export const callGeminiApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeReview> => {
   if (!settings.apiKey) {
     throw new Error("Google API Key not provided in settings.");
   }
@@ -113,9 +113,9 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
     
     CRITICAL: The 'correctedCode' field must contain the entire code as a SINGLE JSON STRING.
     This requires escaping special characters.
-    - All double quotes (") inside the code must become (\\").
-    - All backslashes (\\) inside the code must become (\\\\).
-    - All newline characters must become (\\n).
+    - All double quotes (") inside the code must become (\\"). Example: {"key": "value with \\"quotes\\""}.
+    - All backslashes (\\) inside the code must become (\\\\). Example: {"path": "C:\\\\Users\\\\Test"}.
+    - All newline characters must become (\\n). Example: {"code": "line1\\nline2"}.
     This is MANDATORY for the JSON to be valid.
   `;
 
@@ -138,42 +138,50 @@ export const callGeminiApi = async (settings: Settings, code: string, customProm
   `;
 
   try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const params: any = {
       model: settings.model || "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: reviewSchema,
       },
-    });
+    };
 
-    const rawText = response?.text;
-
-    if (!rawText) {
-        let reason = "The API returned an empty or invalid response.";
-        const candidates = (response as any)?.candidates;
-        const promptFeedback = (response as any)?.promptFeedback;
-
-        if (promptFeedback?.blockReason) {
-            reason = `The prompt was blocked due to safety settings. Reason: ${promptFeedback.blockReason}.`;
-        } else if (candidates?.[0]?.finishReason && candidates?.[0]?.finishReason !== 'STOP') {
-            reason = `The response was incomplete, possibly due to safety filters or other issues. Finish reason: ${candidates[0].finishReason}.`;
-        }
-        
-        throw new Error(reason);
+    if (streamOptions?.signal) {
+      params.signal = streamOptions.signal;
     }
 
-    const jsonText = extractJsonFromText(rawText);
+    const stream = await ai.models.generateContentStream(params);
+
+    let accumulatedText = '';
+    for await (const chunk of stream) {
+        const chunkText = chunk.text;
+        if (chunkText) {
+            accumulatedText += chunkText;
+            streamOptions?.onChunk(chunkText);
+        }
+    }
+
+    if (!accumulatedText) {
+        // This part needs re-evaluation as response object is different for streams.
+        // For now, a generic error is thrown if the accumulated text is empty.
+        throw new Error("The API returned an empty or invalid response. This may be due to safety filters or other issues.");
+    }
+    
+    const jsonText = extractJsonFromText(accumulatedText);
     try {
         const reviewData = JSON.parse(jsonText);
         return reviewData as CodeReview;
     } catch (parseError) {
-        console.error("Failed to parse JSON response from Gemini API. Raw response text:", rawText);
+        console.error("Failed to parse JSON response from Gemini API. Raw response text:", accumulatedText);
         const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
         throw new Error(`The AI returned an invalid JSON response. Error: ${errorMessage}. This can sometimes happen with complex code. Please check the browser's developer console for the raw API output.`);
     }
 
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+    }
     console.error("Error calling Gemini API:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to get code review from Gemini API. ${errorMessage}`);

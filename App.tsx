@@ -9,6 +9,7 @@ import { CorrectedCodeView } from './components/CorrectedCodeView';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { SettingsModal } from './components/SettingsModal';
 import { reviewCode } from './services/llmService';
+import { ThinkingBox } from './components/ThinkingBox';
 import type { CodeReview } from './types';
 
 const AppContent: React.FC = () => {
@@ -22,9 +23,13 @@ const AppContent: React.FC = () => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [deepScan, setDeepScan] = useState<boolean>(false);
+  const [showLiveThinking, setShowLiveThinking] = useState<boolean>(false);
+  const [streamingResponse, setStreamingResponse] = useState<string>('');
+
 
   const { settings } = useSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleReview = useCallback(async () => {
     if (!settings.apiKey && settings.provider === 'gemini') {
@@ -36,24 +41,46 @@ const AppContent: React.FC = () => {
       setError('Please enter some code or upload a file to review.');
       return;
     }
+    
+    abortControllerRef.current = new AbortController();
+    
     setIsLoading(true);
     setError(null);
     setReview(null);
-    setOriginalCode(code); 
+    setOriginalCode(code);
+    setStreamingResponse('');
+
     try {
       setLoadingStage(deepScan ? 'Stage 1/2: Analyzing...' : 'Analyzing your code...');
-      const result = await reviewCode(settings, code, customPrompt, deepScan);
+      
+      const streamOptions = {
+          signal: abortControllerRef.current.signal,
+          onChunk: (chunk: string) => {
+              setStreamingResponse(prev => prev + chunk);
+          }
+      };
+
+      const result = await reviewCode(settings, code, customPrompt, deepScan, streamOptions);
+
       if(deepScan) setLoadingStage('Stage 2/2: Validating...');
       setReview(result);
     } catch (err) {
-      console.error(err);
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-      setError(`An error occurred while reviewing the code. Please check your settings and console for details. Error: ${errorMessage}`);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError("Code review aborted by user.");
+      } else {
+        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        setError(`An error occurred while reviewing the code. Please check your settings and console for details. Error: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
       setLoadingStage('');
     }
   }, [code, customPrompt, settings, deepScan]);
+  
+  const handleAbort = () => {
+    abortControllerRef.current?.abort();
+  }
   
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -149,7 +176,7 @@ const AppContent: React.FC = () => {
                 <UploadIcon className="h-5 w-5" />
               </button>
             </div>
-             <div className="flex items-center justify-center mt-4">
+             <div className="flex items-center justify-center mt-4 space-x-6">
                 <label htmlFor="deep-scan-toggle" className="flex items-center cursor-pointer">
                     <div className="relative">
                         <input 
@@ -164,7 +191,24 @@ const AppContent: React.FC = () => {
                         <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${deepScan ? 'transform translate-x-6' : ''}`}></div>
                     </div>
                     <div className="ml-3 text-gray-400 text-sm font-medium">
-                       Deep Scan <span className="text-gray-500">(Validate & Refine)</span>
+                       Deep Scan
+                    </div>
+                </label>
+                <label htmlFor="live-thinking-toggle" className="flex items-center cursor-pointer">
+                    <div className="relative">
+                        <input 
+                            type="checkbox" 
+                            id="live-thinking-toggle" 
+                            className="sr-only" 
+                            checked={showLiveThinking} 
+                            onChange={() => setShowLiveThinking(!showLiveThinking)}
+                            disabled={isLoading}
+                        />
+                        <div className={`block w-14 h-8 rounded-full transition ${showLiveThinking ? 'bg-blue-600' : 'bg-gray-600'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showLiveThinking ? 'transform translate-x-6' : ''}`}></div>
+                    </div>
+                    <div className="ml-3 text-gray-400 text-sm font-medium">
+                       Live Thinking
                     </div>
                 </label>
             </div>
@@ -174,16 +218,17 @@ const AppContent: React.FC = () => {
              <h2 className="text-xl font-semibold mb-3 text-gray-300">AI Review Feedback</h2>
              <div className="bg-gray-800 rounded-lg p-6 min-h-[500px] border border-gray-700">
                 {error && <div className="text-red-400 bg-red-900/50 p-4 rounded-md">{error}</div>}
-                {isLoading && (
+                {isLoading && showLiveThinking ? (
+                    <ThinkingBox response={streamingResponse} onAbort={handleAbort} />
+                ) : isLoading ? (
                    <div className="flex flex-col items-center justify-center h-full">
                        <Loader />
                        <p className="mt-4 text-gray-400">{loadingStage || 'Analyzing your code...'}</p>
                    </div>
-                )}
-                {review ? (
+                ) : review ? (
                     <ReviewOutput review={review} />
                 ) : (
-                    !isLoading && !error && (
+                    !error && (
                         <div className="flex items-center justify-center h-full text-gray-500">
                            <p>Your code review results will appear here.</p>
                         </div>
@@ -193,7 +238,7 @@ const AppContent: React.FC = () => {
           </div>
         </div>
         
-        {review?.correctedCode && originalCode && (
+        {review?.correctedCode && originalCode && !isLoading && (
           <div className="mt-12 animate-fade-in">
             <CorrectedCodeView 
               review={review}

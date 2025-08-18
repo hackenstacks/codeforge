@@ -31,7 +31,7 @@ const extractJsonFromText = (text: string): any => {
     }
 };
 
-export const callOpenAICompatibleApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean): Promise<CodeReview> => {
+export const callOpenAICompatibleApi = async (settings: Settings, code: string, customPrompt?: string, deepScan?: boolean, streamOptions?: { signal: AbortSignal, onChunk: (chunk: string) => void }): Promise<CodeReview> => {
   if (!settings.endpoint) {
     throw new Error("OpenAI-compatible API endpoint not provided in settings.");
   }
@@ -98,9 +98,9 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
    systemPrompt += `
     CRITICAL: The 'correctedCode' field must contain the entire code as a SINGLE JSON STRING.
     This requires escaping special characters correctly.
-    - All double quotes (") inside the code must become (\\").
-    - All backslashes (\\) inside the code must become (\\\\).
-    - All newline characters must become (\\n).
+    - All double quotes (") inside the code must become (\\"). Example: {"key": "value with \\"quotes\\""}.
+    - All backslashes (\\) inside the code must become (\\\\). Example: {"path": "C:\\\\Users\\\\Test"}.
+    - All newline characters must become (\\n). Example: {"code": "line1\\nline2"}.
     This is MANDATORY for the JSON to be valid.
 
     TypeScript interface for your response:
@@ -120,8 +120,9 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
             ],
-            response_format: { type: "json_object" } // For models that support it
-        })
+            stream: true,
+        }),
+        signal: streamOptions?.signal,
     });
     
     if (!response.ok) {
@@ -129,16 +130,48 @@ export const callOpenAICompatibleApi = async (settings: Settings, code: string, 
         throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
     }
 
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-        throw new Error("Received an empty response from the API.");
+    if (!response.body) {
+      throw new Error("Response body is null");
     }
 
-    const reviewData = extractJsonFromText(content);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
+
+    while(true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const textChunk = decoder.decode(value);
+        const lines = textChunk.split('\n');
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const dataStr = line.substring(6).trim();
+                if (dataStr === '[DONE]') {
+                    break;
+                }
+                try {
+                    const parsed = JSON.parse(dataStr);
+                    const delta = parsed.choices[0]?.delta?.content;
+                    if(delta) {
+                        accumulatedText += delta;
+                        streamOptions?.onChunk(delta);
+                    }
+                } catch (e) {
+                    console.warn("Could not parse stream chunk:", dataStr);
+                }
+            }
+        }
+    }
+
+    const reviewData = extractJsonFromText(accumulatedText);
     return reviewData as CodeReview;
 
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+        throw error;
+    }
     console.error("Error calling OpenAI-compatible API:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to get code review from OpenAI-compatible API. ${errorMessage}`);
