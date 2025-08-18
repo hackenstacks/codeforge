@@ -15,6 +15,7 @@ export const callGeminiApiForChat = async (
     messages: ChatMessage[],
     persona: Persona,
     useWebSearch: boolean,
+    useThinking: boolean,
     streamOptions: { signal: AbortSignal, onChunk: (chunk: GenerateContentResponse) => void }
 ): Promise<GenerateContentResponse> => {
     if (!settings.apiKey) {
@@ -39,6 +40,7 @@ export const callGeminiApiForChat = async (
             config: {
                 systemInstruction: persona.systemInstruction,
                 tools: useWebSearch ? [{ googleSearch: {} }] : undefined,
+                thinkingConfig: useThinking ? undefined : { thinkingBudget: 0 },
             },
             history: history,
         });

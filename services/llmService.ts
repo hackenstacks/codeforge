@@ -8,11 +8,12 @@ export const getChatResponse = async (
     messages: ChatMessage[],
     persona: Persona,
     useWebSearch: boolean,
+    useThinking: boolean,
     streamOptions: { signal: AbortSignal, onChunk: (chunk: any) => void }
 ): Promise<any> => {
      switch (settings.provider) {
         case 'gemini':
-            return callGeminiApiForChat(settings, messages, persona, useWebSearch, streamOptions as { signal: AbortSignal, onChunk: (chunk: GenerateContentResponse) => void });
+            return callGeminiApiForChat(settings, messages, persona, useWebSearch, useThinking, streamOptions as { signal: AbortSignal, onChunk: (chunk: GenerateContentResponse) => void });
         case 'openai':
             // The OpenAI service will need to be adapted to return a compatible response or this needs a transformer
             return callOpenAICompatibleApiForChat(settings, messages, persona, useWebSearch, streamOptions);

@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -7,6 +7,8 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ChatMessage, Persona } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { LinkIcon } from './icons/LinkIcon';
+import { ClipboardIcon } from './icons/ClipboardIcon';
+import { CheckIcon } from './icons/CheckIcon';
 
 interface ChatMessageBubbleProps {
     message: ChatMessage;
@@ -14,12 +16,40 @@ interface ChatMessageBubbleProps {
 }
 
 const CodeBlock = memo(({ node, inline, className, children, ...props }: any) => {
+    const [isCopied, setIsCopied] = useState(false);
     const match = /language-(\w+)/.exec(className || '');
     const codeString = String(children).replace(/\n$/, '');
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(codeString).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }, (err) => {
+            console.error('Could not copy text: ', err);
+        });
+    };
+
     return !inline && match ? (
         <div className="relative my-2">
-            <div className="bg-gray-900 text-gray-400 text-xs px-3 py-1 rounded-t-md">
-                {match[1]}
+            <div className="bg-gray-900 text-gray-400 text-xs px-3 py-1 rounded-t-md flex justify-between items-center">
+                <span>{match[1]}</span>
+                <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1.5 text-gray-300 hover:text-white"
+                    aria-label="Copy code to clipboard"
+                >
+                    {isCopied ? (
+                        <>
+                            <CheckIcon className="h-4 w-4 text-green-400" />
+                            <span className="text-green-400">Copied!</span>
+                        </>
+                    ) : (
+                        <>
+                            <ClipboardIcon className="h-4 w-4" />
+                            <span>Copy</span>
+                        </>
+                    )}
+                </button>
             </div>
             <SyntaxHighlighter
                 style={vscDarkPlus}

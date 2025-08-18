@@ -9,6 +9,7 @@ import { UploadIcon } from './icons/UploadIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { PaperPlaneIcon } from './icons/PaperPlaneIcon';
 import { FileIcon } from './icons/FileIcon';
+import { WandIcon } from './icons/WandIcon';
 import { Tooltip } from './Tooltip';
 import { dbService } from '../db';
 import { GenerateContentResponse } from '@google/genai';
@@ -26,10 +27,19 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [useWebSearch, setUseWebSearch] = useState(false);
+    const [useThinking, setUseThinking] = useState(true);
     const [currentProject, setCurrentProject] = useState<ChatProject | null>(null);
 
     const abortControllerRef = useRef<AbortController | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const currentProjectRef = useRef(currentProject);
+
+    const showThinkingToggle = settings.provider === 'gemini' && settings.model.includes('flash');
+
+    useEffect(() => {
+        currentProjectRef.current = currentProject;
+    }, [currentProject]);
+
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -105,7 +115,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                     }
                 },
             };
-            await getChatResponse(settings, newMessages, activePersona, useWebSearch, streamOptions);
+            await getChatResponse(settings, newMessages, activePersona, useWebSearch, useThinking, streamOptions);
             
         } catch (err) {
             if (err instanceof Error && err.name !== 'AbortError') {
@@ -117,32 +127,32 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
             setIsLoading(false);
             if (useWebSearch) setUseWebSearch(false); 
         }
-    }, [isLoading, messages, settings, activePersona, useWebSearch]);
+    }, [isLoading, messages, settings, activePersona, useWebSearch, useThinking]);
     
     useEffect(() => {
         // Auto-save project
-        if (!isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length-1].content) {
+        if (!isLoading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content) {
             const title = messages[0].content.substring(0, 50);
             const projectData: Omit<ChatProject, 'id' | 'createdAt'> = {
                 type: 'chat',
                 prompt: title,
-                tags: currentProject?.tags || [],
+                tags: currentProjectRef.current?.tags || [],
                 data: {
                     messages: messages,
                     persona: activePersona,
                     workspaceAssets: assets
                 }
             };
-            
-            if (currentProject?.id) {
-                 dbService.updateProject({ ...projectData, id: currentProject.id, createdAt: currentProject.createdAt } as Project);
+
+            if (currentProjectRef.current?.id) {
+                dbService.updateProject({ ...projectData, id: currentProjectRef.current.id, createdAt: currentProjectRef.current.createdAt } as Project);
             } else {
-                 dbService.addProject(projectData).then(id => {
-                     setCurrentProject({ ...projectData, id, createdAt: new Date() } as ChatProject);
-                 });
+                dbService.addProject(projectData).then(id => {
+                    setCurrentProject({ ...projectData, id, createdAt: new Date() } as ChatProject);
+                });
             }
         }
-    }, [messages, isLoading, activePersona, currentProject, assets]);
+    }, [messages, isLoading, activePersona, assets]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -208,7 +218,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={`Message ${activePersona.name}... (Shift+Enter for new line)`}
-                        className="w-full h-12 p-3 pl-12 pr-28 bg-light-surface dark:bg-gray-700 text-light-text-primary dark:text-gray-200 border border-light-border dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        className="w-full h-12 p-3 pl-12 pr-36 bg-light-surface dark:bg-gray-700 text-light-text-primary dark:text-gray-200 border border-light-border dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                         rows={1}
                         disabled={isLoading}
                         style={{ height: 'auto', minHeight: '3rem', maxHeight: '12rem' }}
@@ -226,6 +236,17 @@ export const ChatView: React.FC<ChatViewProps> = ({ projectId, activePersona }) 
                         </Tooltip>
                     </div>
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {showThinkingToggle && (
+                            <Tooltip text={useThinking ? "AI Thinking: On (Higher Quality)" : "AI Thinking: Off (Faster Response)"}>
+                                <button
+                                    onClick={() => setUseThinking(!useThinking)}
+                                    className={`p-2 rounded-full transition-colors ${useThinking ? 'text-purple-500 bg-purple-500/20' : 'text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-600'}`}
+                                    disabled={isLoading}
+                                >
+                                    <WandIcon className="h-5 w-5" />
+                                </button>
+                            </Tooltip>
+                        )}
                         <Tooltip text={useWebSearch ? "Web Search Enabled" : "Enable Web Search"}>
                             <button onClick={() => setUseWebSearch(!useWebSearch)} className={`p-2 rounded-full transition-colors ${useWebSearch ? 'text-blue-500 bg-blue-500/20' : 'text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-600'}`} disabled={isLoading}>
                                 <SearchIcon className="h-5 w-5" />
