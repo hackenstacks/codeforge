@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ForgeIcon } from './icons/ForgeIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
@@ -9,6 +10,7 @@ import { Tooltip } from './Tooltip';
 import { ThemeToggle } from './ThemeToggle';
 import type { Persona } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { PaintBrushIcon } from './icons/PaintBrushIcon';
 
 interface HeaderProps {
     onSettingsClick: () => void;
@@ -16,7 +18,8 @@ interface HeaderProps {
     onVaultClick: () => void;
     onNewProjectClick: () => void;
     onPersonaClick: () => void;
-    currentView: 'chat' | 'vault';
+    onImageClick: () => void;
+    currentView: 'chat' | 'vault' | 'image';
     activePersona: Persona;
 }
 
@@ -26,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
     onVaultClick, 
     onNewProjectClick, 
     onPersonaClick,
+    onImageClick,
     currentView,
     activePersona
 }) => {
@@ -38,10 +42,10 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="ml-3 text-2xl font-bold text-light-text-primary dark:text-white">
                 AI Forge 
                 <span className="text-gray-500 text-lg font-normal">
-                    {currentView === 'vault' ? '/ My Forge' : ''}
+                    {currentView === 'vault' ? '/ My Forge' : currentView === 'image' ? '/ Image Generation' : ''}
                 </span>
             </h1>
-            {currentView === 'vault' && (
+            {currentView !== 'chat' && (
                  <button onClick={onNewProjectClick} className="ml-6 px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
                     + New Chat
                  </button>
@@ -57,6 +61,11 @@ export const Header: React.FC<HeaderProps> = ({
              <Tooltip text="My Forge">
                 <button onClick={onVaultClick} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-700 hover:text-light-text-primary dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-gray-800 focus:ring-blue-500" aria-label="Open My Forge">
                     <DatabaseIcon className="h-6 w-6" />
+                </button>
+            </Tooltip>
+             <Tooltip text="Image Generation">
+                <button onClick={onImageClick} className="p-2 rounded-full text-light-text-secondary dark:text-gray-400 hover:bg-black/10 dark:hover:bg-gray-700 hover:text-light-text-primary dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-gray-800 focus:ring-blue-500" aria-label="Open Image Generation">
+                    <PaintBrushIcon className="h-6 w-6" />
                 </button>
             </Tooltip>
             <Tooltip text="Help">

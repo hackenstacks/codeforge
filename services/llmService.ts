@@ -1,3 +1,4 @@
+
 import type { Settings, ImageGenerationResult, ChatMessage, Persona } from '../types';
 import { callGeminiApiForChat, callGeminiApiForImageGeneration } from './geminiService';
 import { callOpenAICompatibleApiForChat } from './openaiCompatibleService';
@@ -26,10 +27,11 @@ export const getChatResponse = async (
 export const generateImage = async (
     settings: Settings,
     prompt: string,
+    aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' = '1:1'
 ): Promise<ImageGenerationResult> => {
     switch (settings.provider) {
         case 'gemini':
-            return callGeminiApiForImageGeneration(settings, prompt);
+            return callGeminiApiForImageGeneration(settings, prompt, aspectRatio);
         case 'openai':
             // You would need to implement this in the openaiCompatibleService
             throw new Error("Image generation for OpenAI-compatible providers is not implemented yet.");

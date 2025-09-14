@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Content } from "@google/genai";
 import type { Settings, ImageGenerationResult, ChatMessage, Persona } from '../types';
 
@@ -72,7 +73,7 @@ export const callGeminiApiForChat = async (
 };
 
 
-export const callGeminiApiForImageGeneration = async (settings: Settings, prompt: string): Promise<ImageGenerationResult> => {
+export const callGeminiApiForImageGeneration = async (settings: Settings, prompt: string, aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4'): Promise<ImageGenerationResult> => {
     if (!settings.apiKey) {
         throw new Error("Google API Key not provided in settings.");
     }
@@ -80,11 +81,12 @@ export const callGeminiApiForImageGeneration = async (settings: Settings, prompt
 
     try {
         const response = await ai.models.generateImages({
-            model: 'imagen-3.0-generate-002',
+            model: 'imagen-4.0-generate-001',
             prompt: prompt,
             config: {
               numberOfImages: 1,
               outputMimeType: 'image/png',
+              aspectRatio: aspectRatio,
             },
         });
 

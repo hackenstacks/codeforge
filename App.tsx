@@ -10,6 +10,7 @@ import { HelpModal } from './components/HelpModal';
 import { PersonaModal } from './components/PersonaModal';
 import { ForgeVault } from './components/ForgeVault';
 import { ChatView } from './components/ChatView';
+import { ImageGenerationView } from './components/ImageGenerationView';
 import { LockScreen } from './components/LockScreen';
 import { ResizablePanel } from './components/ResizablePanel';
 import { Workspace } from './components/Workspace';
@@ -17,7 +18,7 @@ import type { Project, Persona } from './types';
 import { defaultPersonas } from './personas';
 import useLocalStorage from './hooks/useLocalStorage';
 
-type View = 'chat' | 'vault';
+type View = 'chat' | 'vault' | 'image';
 
 const AppUI: React.FC = () => {
   const [view, setView] = useState<View>('chat');
@@ -52,6 +53,7 @@ const AppUI: React.FC = () => {
         onVaultClick={() => setView('vault')} 
         onNewProjectClick={handleNewChat}
         onPersonaClick={() => setPersonaModalOpen(true)}
+        onImageClick={() => setView('image')}
         currentView={view}
         activePersona={activePersona}
       />
@@ -65,8 +67,10 @@ const AppUI: React.FC = () => {
             />
             <Workspace />
           </ResizablePanel>
-        ) : (
+        ) : view === 'vault' ? (
             <ForgeVault setView={setView} onLoadProject={handleLoadProject} />
+        ) : (
+            <ImageGenerationView />
         )}
       </main>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
