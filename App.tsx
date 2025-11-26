@@ -5,6 +5,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
+import { ImageHistoryProvider } from './contexts/ImageHistoryContext';
 import { SettingsModal } from './components/SettingsModal';
 import { HelpModal } from './components/HelpModal';
 import { PersonaModal } from './components/PersonaModal';
@@ -97,7 +98,9 @@ const App: React.FC = () => (
     <ThemeProvider>
       <AuthProvider>
         <WorkspaceProvider>
-          <AppContent />
+          <ImageHistoryProvider>
+            <AppContent />
+          </ImageHistoryProvider>
         </WorkspaceProvider>
       </AuthProvider>
     </ThemeProvider>

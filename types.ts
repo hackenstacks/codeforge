@@ -1,3 +1,4 @@
+
 export interface Correction {
   line?: number;
   problematicCode: string;
@@ -128,4 +129,16 @@ export type Project = ReviewProject | CodeProject | ImageProject | ChatProject;
 export interface EncryptedProject {
     id: number;
     ciphertext: string;
+}
+
+// ---- Image History Types ----
+export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+
+export interface HistoryItem {
+    id: string;
+    prompt: string;
+    base64Image: string;
+    aspectRatio: AspectRatio;
+    timestamp: number;
+    isSaved: boolean;
 }
